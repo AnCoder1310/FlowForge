@@ -1,0 +1,2207 @@
+openapi: 3.0.4
+info:
+  title: HandmadeFinance API
+  version: 1.0.0
+  description: |
+    REST API contract for HandmadeFinance. The contract covers authentication, dashboard,
+    income, expense, report, import, attachment, audit, user, and profile operations.
+
+    Monetary values are stored in USD. EUR conversion belongs only to the presentation layer.
+    Income and expense records use soft delete. List and get-by-id operations return active
+    records only.
+
+    The backend is the authorization boundary and must enforce roles and ownership.
+    This OpenAPI document is the contract that the backend must implement. It does not
+    mean that every operation is available at runtime yet.
+  contact:
+    name: HandmadeFinance Team
+servers:
+  - url: /api/v1
+    description: Version 1 API relative to the deployment host
+  - url: http://localhost:5000/api/v1
+    description: Local development server
+tags:
+  - name: Authentication
+    description: Login issues a short-lived JWT access token. Logout acknowledges that the client discards the token. V1 does not issue a refresh token.
+  - name: Dashboard
+    description: Aggregated KPIs and charts calculated from active income and expense records in USD.
+  - name: Categories
+    description: Lookup of active income and expense categories used when creating or filtering transactions.
+  - name: Income
+    description: Create, list, update, and soft-delete income records. List and get return active records only.
+  - name: Expenses
+    description: Create, list, update, and soft-delete expense records. List and get return active records only.
+  - name: Reports
+    description: Financial aggregates over active USD records, with PDF or XLSX export.
+  - name: Imports
+    description: Excel preview and all-or-nothing import processing for income or expense rows.
+  - name: Attachments
+    description: Evidence files attached to income or expense records.
+  - name: Audit
+    description: Administrative activity history for income, expense, auth, import, and export events.
+  - name: Users
+    description: Administrator management of user accounts, roles, and active status.
+  - name: Profile
+    description: Current-user profile and password management. Role and active status cannot be changed here.
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in
+      description: |
+        Authenticates with email and password and returns a 30-minute JWT access token plus the user profile.
+        This operation does not require an existing access token. V1 does not return a refresh token.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        description: Email and password for an existing user account.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LoginRequest'}
+            examples:
+              loginRequest:
+                $ref: '#/components/examples/LoginRequestExample'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LoginResponse'}
+              examples:
+                loginSuccess:
+                  $ref: '#/components/examples/LoginSuccessExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/InvalidCredentials'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Log out
+      description: |
+        Acknowledges logout for the authenticated user. V1 uses a 30-minute access token, has no refresh token, and does not define server-side token revocation.
+        The client must discard the access token after a successful response.
+      operationId: logout
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      responses:
+        '204':
+          description: Logout acknowledged; the client discards its short-lived access token. No response body is returned.
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard data
+      description: |
+        Returns KPIs, cashflow points, income-by-category totals, and recent transactions calculated from active income and expense records.
+        `dateFrom` and `dateTo` are optional inclusive filters. Soft-deleted records are excluded.
+      operationId: getDashboard
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      parameters:
+        - {$ref: '#/components/parameters/DateFrom'}
+        - {$ref: '#/components/parameters/DateTo'}
+      responses:
+        '200':
+          description: Dashboard KPIs and charts calculated from active records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DashboardResponse'}
+              examples:
+                dashboardSuccess:
+                  $ref: '#/components/examples/DashboardSuccessExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /categories/income:
+    get:
+      tags: [Categories]
+      summary: List active income categories
+      description: Returns income categories with `isActive` true. Inactive categories are omitted. The result is not paginated.
+      operationId: listIncomeCategories
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      responses:
+        '200':
+          description: Active income categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Category'}
+              examples:
+                categoryList:
+                  $ref: '#/components/examples/CategoryListExample'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /categories/expense:
+    get:
+      tags: [Categories]
+      summary: List active expense categories
+      description: Returns expense categories with `isActive` true. Inactive categories are omitted. The result is not paginated.
+      operationId: listExpenseCategories
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      responses:
+        '200':
+          description: Active expense categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Category'}
+              examples:
+                categoryList:
+                  $ref: '#/components/examples/CategoryListExample'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /incomes:
+    get:
+      tags: [Income]
+      summary: List active income records
+      description: |
+        Returns a page of active income records. Soft-deleted records are excluded.
+        All query filters are optional. When a filter is omitted, it is not applied.
+        An empty result is HTTP 200 with `items: []`.
+      operationId: listIncomes
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Search'}
+        - {$ref: '#/components/parameters/DateFrom'}
+        - {$ref: '#/components/parameters/DateTo'}
+        - {$ref: '#/components/parameters/RecordStatus'}
+        - {$ref: '#/components/parameters/DataSource'}
+        - name: categoryId
+          in: query
+          description: Optional income category identifier. When omitted, records from all income categories are returned.
+          schema: {type: integer, format: int64, minimum: 1}
+          example: 1
+        - name: saleRegion
+          in: query
+          description: Optional sale region filter. When omitted, records from all regions are returned.
+          schema: {$ref: '#/components/schemas/SaleRegion'}
+          example: IN_EU
+        - name: salesChannel
+          in: query
+          description: Optional sales channel filter. When omitted, records from all channels are returned.
+          schema: {$ref: '#/components/schemas/SalesChannel'}
+          example: ETSY_STORE
+      responses:
+        '200':
+          description: Paginated active income records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedIncomeResponse'}
+              examples:
+                pagedIncome:
+                  $ref: '#/components/examples/PagedIncomeExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Income]
+      summary: Create an income record
+      description: Creates a manual income record in USD. The created record is active. `EMPLOYEE`, `SHOP_OWNER`, and `ADMIN` may create records.
+      operationId: createIncome
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      requestBody:
+        required: true
+        description: Income fields to persist. `currencyCode` must be USD.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IncomeWriteRequest'}
+            examples:
+              incomeWrite:
+                $ref: '#/components/examples/IncomeWriteRequestExample'
+      responses:
+        '201':
+          description: Income created
+          headers:
+            Location:
+              description: Relative URI of the created income record.
+              schema: {type: string, format: uri-reference}
+              example: /api/v1/incomes/101
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Income'}
+              examples:
+                incomeCreated:
+                  $ref: '#/components/examples/IncomeExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /incomes/{incomeId}:
+    parameters:
+      - {$ref: '#/components/parameters/IncomeId'}
+    get:
+      tags: [Income]
+      summary: Get an active income record
+      description: Returns one active income record by ID, including attachments. Soft-deleted records return 404.
+      operationId: getIncome
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      responses:
+        '200':
+          description: Income record
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Income'}
+              examples:
+                income:
+                  $ref: '#/components/examples/IncomeExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Income]
+      summary: Replace an income record
+      description: |
+        Replaces an active income record. `EMPLOYEE` may update only a record whose `createdBy` equals the authenticated user ID.
+        `ADMIN` and `SHOP_OWNER` may update any active income record.
+      operationId: updateIncome
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      x-own-record-role: EMPLOYEE
+      requestBody:
+        required: true
+        description: Full income replacement payload. `currencyCode` must be USD.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IncomeWriteRequest'}
+            examples:
+              incomeWrite:
+                $ref: '#/components/examples/IncomeWriteRequestExample'
+      responses:
+        '200':
+          description: Income updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Income'}
+              examples:
+                incomeUpdated:
+                  $ref: '#/components/examples/IncomeExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Income]
+      summary: Soft-delete an income record
+      description: |
+        Soft-deletes an income record by setting `deletedAt` and `deletedBy`. The row is retained for audit.
+        Subsequent list and get operations treat the record as not found. Physical deletion is not used.
+      operationId: softDeleteIncome
+      x-roles: [ADMIN, SHOP_OWNER]
+      responses:
+        '204':
+          description: Income soft-deleted. No response body is returned.
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /expenses:
+    get:
+      tags: [Expenses]
+      summary: List active expense records
+      description: |
+        Returns a page of active expense records. Soft-deleted records are excluded.
+        All query filters are optional. When a filter is omitted, it is not applied.
+        An empty result is HTTP 200 with `items: []`.
+      operationId: listExpenses
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Search'}
+        - {$ref: '#/components/parameters/DateFrom'}
+        - {$ref: '#/components/parameters/DateTo'}
+        - {$ref: '#/components/parameters/RecordStatus'}
+        - {$ref: '#/components/parameters/DataSource'}
+        - name: categoryId
+          in: query
+          description: Optional expense category identifier. When omitted, records from all expense categories are returned.
+          schema: {type: integer, format: int64, minimum: 1}
+          example: 2
+        - name: originScope
+          in: query
+          description: Optional origin scope filter. When omitted, domestic and international expenses are returned.
+          schema: {$ref: '#/components/schemas/OriginScope'}
+          example: DOMESTIC
+        - name: paymentMethod
+          in: query
+          description: Optional payment method filter. When omitted, records with any payment method are returned.
+          schema: {$ref: '#/components/schemas/PaymentMethod'}
+          example: BANK_TRANSFER
+      responses:
+        '200':
+          description: Paginated active expense records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedExpenseResponse'}
+              examples:
+                pagedExpense:
+                  $ref: '#/components/examples/PagedExpenseExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Expenses]
+      summary: Create an expense record
+      description: Creates a manual expense record in USD. The created record is active. `EMPLOYEE`, `SHOP_OWNER`, and `ADMIN` may create records.
+      operationId: createExpense
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      requestBody:
+        required: true
+        description: Expense fields to persist. `currencyCode` must be USD.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExpenseWriteRequest'}
+            examples:
+              expenseWrite:
+                $ref: '#/components/examples/ExpenseWriteRequestExample'
+      responses:
+        '201':
+          description: Expense created
+          headers:
+            Location:
+              description: Relative URI of the created expense record.
+              schema: {type: string, format: uri-reference}
+              example: /api/v1/expenses/201
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Expense'}
+              examples:
+                expenseCreated:
+                  $ref: '#/components/examples/ExpenseExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /expenses/{expenseId}:
+    parameters:
+      - {$ref: '#/components/parameters/ExpenseId'}
+    get:
+      tags: [Expenses]
+      summary: Get an active expense record
+      description: Returns one active expense record by ID, including attachments. Soft-deleted records return 404.
+      operationId: getExpense
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      responses:
+        '200':
+          description: Expense record
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Expense'}
+              examples:
+                expense:
+                  $ref: '#/components/examples/ExpenseExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Expenses]
+      summary: Replace an expense record
+      description: |
+        Replaces an active expense record. `EMPLOYEE` may update only a record whose `createdBy` equals the authenticated user ID.
+        `ADMIN` and `SHOP_OWNER` may update any active expense record.
+      operationId: updateExpense
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      x-own-record-role: EMPLOYEE
+      requestBody:
+        required: true
+        description: Full expense replacement payload. `currencyCode` must be USD.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExpenseWriteRequest'}
+            examples:
+              expenseWrite:
+                $ref: '#/components/examples/ExpenseWriteRequestExample'
+      responses:
+        '200':
+          description: Expense updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Expense'}
+              examples:
+                expenseUpdated:
+                  $ref: '#/components/examples/ExpenseExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      tags: [Expenses]
+      summary: Soft-delete an expense record
+      description: |
+        Soft-deletes an expense record by setting `deletedAt` and `deletedBy`. The row is retained for audit.
+        Subsequent list and get operations treat the record as not found. Physical deletion is not used.
+      operationId: softDeleteExpense
+      x-roles: [ADMIN, SHOP_OWNER]
+      responses:
+        '204':
+          description: Expense soft-deleted. No response body is returned.
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /reports:
+    get:
+      tags: [Reports]
+      summary: Get financial report data
+      description: |
+        Returns USD aggregates over active income and expense records.
+        `dateFrom`, `dateTo`, `groupBy`, and `categoryId` are optional except that omitted dates mean no date bound is applied.
+        Soft-deleted records are excluded.
+      operationId: getReport
+      x-roles: [ADMIN, SHOP_OWNER, VIEWER]
+      parameters:
+        - {$ref: '#/components/parameters/DateFrom'}
+        - {$ref: '#/components/parameters/DateTo'}
+        - name: groupBy
+          in: query
+          description: Optional aggregation key. Defaults to `MONTH` when omitted.
+          schema: {type: string, enum: [DAY, MONTH, INCOME_CATEGORY, EXPENSE_CATEGORY], default: MONTH}
+          example: MONTH
+        - name: categoryId
+          in: query
+          description: Optional category identifier used with income or expense grouping. When omitted, all categories are included.
+          schema: {type: integer, format: int64, minimum: 1}
+          example: 1
+      responses:
+        '200':
+          description: Report aggregates over active USD records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportResponse'}
+              examples:
+                report:
+                  $ref: '#/components/examples/ReportExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /reports/export:
+    get:
+      tags: [Reports]
+      summary: Export a report
+      description: |
+        Generates a downloadable report file using the same `dateFrom`, `dateTo`, `groupBy`, and `categoryId` filter semantics as `getReport`.
+        The success content type depends on the required `format` query parameter:
+        `PDF` returns `application/pdf` and `XLSX` returns `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+        The success response is a binary file, not JSON.
+      operationId: exportReport
+      x-roles: [ADMIN, SHOP_OWNER, VIEWER]
+      parameters:
+        - {$ref: '#/components/parameters/DateFrom'}
+        - {$ref: '#/components/parameters/DateTo'}
+        - name: groupBy
+          in: query
+          description: Optional aggregation key. Defaults to `MONTH`, identical to `getReport`.
+          schema: {type: string, enum: [DAY, MONTH, INCOME_CATEGORY, EXPENSE_CATEGORY], default: MONTH}
+        - name: categoryId
+          in: query
+          description: Optional category identifier, identical to `getReport`.
+          schema: {type: integer, format: int64, minimum: 1}
+        - name: format
+          in: query
+          required: true
+          description: Required export format. `PDF` returns a PDF file. `XLSX` returns an Excel workbook.
+          schema: {type: string, enum: [PDF, XLSX]}
+          example: PDF
+      responses:
+        '200':
+          description: Generated report file. Content type is `application/pdf` when `format=PDF` and Excel workbook when `format=XLSX`.
+          content:
+            application/pdf:
+              schema: {type: string, format: binary}
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: {type: string, format: binary}
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /imports/preview:
+    post:
+      tags: [Imports]
+      summary: Validate and preview an Excel import
+      description: |
+        Parses and validates an Excel workbook without writing income or expense records.
+        Use the preview to inspect valid and invalid rows before calling the import processing endpoint.
+      operationId: previewImport
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      requestBody:
+        required: true
+        description: |
+          Multipart form with `importType` (`INCOME` or `EXPENSE`) and an Excel `file`.
+          Preview does not persist business records. The V1 maximum is 10 MB and 5,000 data rows; extension, media type, and file signature are validated server-side.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [importType, file]
+              properties:
+                importType:
+                  allOf:
+                    - {$ref: '#/components/schemas/ImportType'}
+                  description: Whether the workbook contains income rows or expense rows.
+                  example: INCOME
+                file:
+                  type: string
+                  format: binary
+                  description: Excel workbook to validate. Binary file content is not shown in examples.
+      responses:
+        '200':
+          description: Parsed preview; no business records have been committed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportPreview'}
+              examples:
+                importPreview:
+                  $ref: '#/components/examples/ImportPreviewExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /imports:
+    get:
+      tags: [Imports]
+      summary: List import history
+      description: |
+        Returns a page of import batches. `importType` and `status` are optional.
+        When omitted, batches of every type and status are included.
+      operationId: listImports
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - name: importType
+          in: query
+          description: Optional import type filter. When omitted, income and expense batches are returned.
+          schema: {$ref: '#/components/schemas/ImportType'}
+          example: INCOME
+        - name: status
+          in: query
+          description: Optional import batch status filter. When omitted, batches in any status are returned.
+          schema: {$ref: '#/components/schemas/ImportStatus'}
+          example: COMPLETED
+      responses:
+        '200':
+          description: Paginated import history
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedImportResponse'}
+              examples:
+                pagedImport:
+                  $ref: '#/components/examples/PagedImportExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Imports]
+      summary: Process an Excel import
+      description: |
+        Synchronously processes an Excel file atomically. If any row has a severe validation error, no income or expense rows
+        from the batch are committed and the final summary reports the validation errors. A valid file commits every row before
+        returning `200 OK`. V1 does not queue a background job.
+      operationId: createImport
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      requestBody:
+        required: true
+        description: |
+          Multipart form with `importType` (`INCOME` or `EXPENSE`) and an Excel `file`.
+          Processing is all-or-nothing. The V1 maximum is 10 MB and 5,000 data rows; extension, media type, and file signature are validated server-side.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [importType, file]
+              properties:
+                importType:
+                  allOf:
+                    - {$ref: '#/components/schemas/ImportType'}
+                  description: Whether the workbook contains income rows or expense rows.
+                  example: INCOME
+                file:
+                  type: string
+                  format: binary
+                  description: Excel workbook to process. Binary file content is not shown in examples.
+      responses:
+        '200':
+          description: Import processing completed; response contains the final atomic result
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportBatch'}
+              examples:
+                importBatch:
+                  $ref: '#/components/examples/ImportBatchExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /imports/{importId}:
+    get:
+      tags: [Imports]
+      summary: Get an import batch
+      description: Returns one persisted import result, including final status, row counts, and `validationErrors`.
+      operationId: getImport
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      parameters:
+        - name: importId
+          in: path
+          required: true
+          description: Unique identifier of the import batch.
+          schema: {type: integer, format: int64, minimum: 1}
+          example: 301
+      responses:
+        '200':
+          description: Import batch status and row counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportBatch'}
+              examples:
+                importBatch:
+                  $ref: '#/components/examples/ImportBatchExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /incomes/{incomeId}/attachments:
+    post:
+      tags: [Attachments]
+      summary: Upload an income attachment
+      description: |
+        Uploads an evidence file and attaches it to an active income record.
+        `EMPLOYEE` may upload only for a record whose `createdBy` equals the authenticated user ID.
+      operationId: uploadIncomeAttachment
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      x-own-record-role: EMPLOYEE
+      parameters:
+        - {$ref: '#/components/parameters/IncomeId'}
+      requestBody:
+        required: true
+        description: |
+          Multipart form with a single `file` field. The file is stored as an attachment of the income identified by `incomeId`.
+          Allowed types and size limits are defined by the backend configuration, not by this contract.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to attach to the income record. Binary file content is not shown in examples.
+      responses:
+        '201':
+          description: Attachment uploaded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Attachment'}
+              examples:
+                attachment:
+                  $ref: '#/components/examples/AttachmentExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /expenses/{expenseId}/attachments:
+    post:
+      tags: [Attachments]
+      summary: Upload an expense attachment
+      description: |
+        Uploads an evidence file and attaches it to an active expense record.
+        `EMPLOYEE` may upload only for a record whose `createdBy` equals the authenticated user ID.
+      operationId: uploadExpenseAttachment
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      x-own-record-role: EMPLOYEE
+      parameters:
+        - {$ref: '#/components/parameters/ExpenseId'}
+      requestBody:
+        required: true
+        description: |
+          Multipart form with a single `file` field. The file is stored as an attachment of the expense identified by `expenseId`.
+          Allowed types and size limits are defined by the backend configuration, not by this contract.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to attach to the expense record. Binary file content is not shown in examples.
+      responses:
+        '201':
+          description: Attachment uploaded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Attachment'}
+              examples:
+                attachment:
+                  $ref: '#/components/examples/AttachmentExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /attachments/{attachmentId}:
+    delete:
+      tags: [Attachments]
+      summary: Delete an attachment
+      description: |
+        Deletes an attachment by ID. `EMPLOYEE` may delete only an attachment belonging to a record they created.
+      operationId: deleteAttachment
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE]
+      x-own-record-role: EMPLOYEE
+      parameters:
+        - name: attachmentId
+          in: path
+          required: true
+          description: Unique identifier of the attachment to delete.
+          schema: {type: integer, format: int64, minimum: 1}
+          example: 501
+      responses:
+        '204':
+          description: Attachment deleted. No response body is returned.
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /audit-logs:
+    get:
+      tags: [Audit]
+      summary: List audit logs
+      description: |
+        Returns a page of audit records. `action`, `actorUserId`, `module`, `dateFrom`, and `dateTo` are optional.
+        When a filter is omitted, it is not applied.
+      operationId: listAuditLogs
+      x-roles: [ADMIN, SHOP_OWNER]
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - name: action
+          in: query
+          description: Optional audit action filter. When omitted, all actions are returned.
+          schema: {$ref: '#/components/schemas/AuditAction'}
+          example: SOFT_DELETE
+        - name: actorUserId
+          in: query
+          description: Optional identifier of the user who performed the action. When omitted, all actors are included.
+          schema: {type: integer, format: int64, minimum: 1}
+          example: 1
+        - name: module
+          in: query
+          description: Optional module name filter, such as income or expense. When omitted, all modules are included.
+          schema: {type: string, maxLength: 100}
+          example: INCOME
+        - {$ref: '#/components/parameters/DateFrom'}
+        - {$ref: '#/components/parameters/DateTo'}
+      responses:
+        '200':
+          description: Paginated audit records
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedAuditResponse'}
+              examples:
+                pagedAudit:
+                  $ref: '#/components/examples/PagedAuditExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      description: |
+        Returns a page of user accounts. `search`, `role`, and `isActive` are optional.
+        When a filter is omitted, it is not applied. Restricted to `ADMIN`.
+      operationId: listUsers
+      x-roles: [ADMIN]
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Search'}
+        - name: role
+          in: query
+          description: Optional role filter. When omitted, users of every role are returned.
+          schema: {$ref: '#/components/schemas/UserRole'}
+          example: EMPLOYEE
+        - name: isActive
+          in: query
+          description: Optional active-status filter. When omitted, both active and disabled users are returned.
+          schema: {type: boolean}
+          example: true
+      responses:
+        '200':
+          description: Paginated users
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedUserResponse'}
+              examples:
+                pagedUser:
+                  $ref: '#/components/examples/PagedUserExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      tags: [Users]
+      summary: Create a user
+      description: Creates a user account with a role and active flag. Restricted to `ADMIN`. Username and email must be unique.
+      operationId: createUser
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        description: New user account fields, including the initial password and role.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateUserRequest'}
+            examples:
+              createUser:
+                $ref: '#/components/examples/CreateUserRequestExample'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+              examples:
+                userCreated:
+                  $ref: '#/components/examples/UserExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /users/{userId}:
+    parameters:
+      - {$ref: '#/components/parameters/UserId'}
+    get:
+      tags: [Users]
+      summary: Get a user
+      description: Returns one user account by ID. Restricted to `ADMIN`.
+      operationId: getUser
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: User account
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+              examples:
+                user:
+                  $ref: '#/components/examples/UserExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Users]
+      summary: Update a user
+      description: Replaces account profile, role, and active status. Password is not changed through this endpoint. Restricted to `ADMIN`.
+      operationId: updateUser
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        description: User replacement payload. Does not include password.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateUserRequest'}
+            examples:
+              updateUser:
+                $ref: '#/components/examples/UpdateUserRequestExample'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+              examples:
+                userUpdated:
+                  $ref: '#/components/examples/UserExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /users/{userId}/status:
+    patch:
+      tags: [Users]
+      summary: Activate or disable a user
+      description: Sets `isActive` for the target account. Disabled users cannot authenticate. Restricted to `ADMIN`.
+      operationId: updateUserStatus
+      x-roles: [ADMIN]
+      parameters:
+        - {$ref: '#/components/parameters/UserId'}
+      requestBody:
+        required: true
+        description: Active flag for the target user account.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isActive]
+              additionalProperties: false
+              properties:
+                isActive: {type: boolean}
+            examples:
+              updateUserStatus:
+                $ref: '#/components/examples/UpdateUserStatusRequestExample'
+      responses:
+        '200':
+          description: User status updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+              examples:
+                userStatus:
+                  $ref: '#/components/examples/UserExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /profile:
+    get:
+      tags: [Profile]
+      summary: Get the authenticated user's profile
+      description: Returns the profile of the caller identified by the access token.
+      operationId: getProfile
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      responses:
+        '200':
+          description: Current profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+              examples:
+                profile:
+                  $ref: '#/components/examples/ProfileExample'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      tags: [Profile]
+      summary: Update the authenticated user's profile
+      description: |
+        Updates the caller's display name, phone, avatar, and timezone.
+        A user cannot change their own role or active status through this endpoint.
+      operationId: updateProfile
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      requestBody:
+        required: true
+        description: Profile fields the authenticated user is allowed to change. Role, active status, and password are not accepted.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateProfileRequest'}
+            examples:
+              updateProfile:
+                $ref: '#/components/examples/UpdateProfileRequestExample'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+              examples:
+                profileUpdated:
+                  $ref: '#/components/examples/ProfileExample'
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+  /profile/password:
+    put:
+      tags: [Profile]
+      summary: Change the authenticated user's password
+      description: Changes the caller's password. `currentPassword` must match the existing password. A new access token is not issued.
+      operationId: changePassword
+      x-roles: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+      requestBody:
+        required: true
+        description: Current password and the new password to set.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChangePasswordRequest'}
+            examples:
+              changePassword:
+                $ref: '#/components/examples/ChangePasswordRequestExample'
+      responses:
+        '204':
+          description: Password changed. No response body is returned.
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token sent in the `Authorization` header using the format `Bearer <token>`.
+        The token contains the authenticated user ID and role. V1 does not define a refresh token.
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: One-based page number. The minimum value is 1. The default is 1.
+      schema: {type: integer, minimum: 1, default: 1}
+      example: 1
+    PageSize:
+      name: pageSize
+      in: query
+      description: Maximum number of items returned in one page. The minimum is 1, the maximum is 100, and the default is 20.
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+      example: 20
+    Search:
+      name: search
+      in: query
+      description: Optional free-text search term. When omitted or empty, keyword search is not applied.
+      schema: {type: string, maxLength: 200}
+      example: etsy order
+    DateFrom:
+      name: dateFrom
+      in: query
+      description: Inclusive start date of the filter range, formatted as YYYY-MM-DD. When omitted, no lower date bound is applied.
+      schema: {type: string, format: date}
+      example: '2026-09-01'
+    DateTo:
+      name: dateTo
+      in: query
+      description: Inclusive end date of the filter range, formatted as YYYY-MM-DD. Must not be earlier than `dateFrom`. When omitted, no upper date bound is applied.
+      schema: {type: string, format: date}
+      example: '2026-09-30'
+    RecordStatus:
+      name: recordStatus
+      in: query
+      description: Optional record-status filter. When omitted, records in any status are returned.
+      schema: {$ref: '#/components/schemas/RecordStatus'}
+      example: COMPLETED
+    DataSource:
+      name: source
+      in: query
+      description: Optional creation-source filter. Distinguishes manually entered records from Excel imports. When omitted, both sources are returned.
+      schema: {$ref: '#/components/schemas/DataSource'}
+      example: MANUAL
+    IncomeId:
+      name: incomeId
+      in: path
+      required: true
+      description: Unique identifier of the income record.
+      schema: {type: integer, format: int64, minimum: 1}
+      example: 101
+    ExpenseId:
+      name: expenseId
+      in: path
+      required: true
+      description: Unique identifier of the expense record.
+      schema: {type: integer, format: int64, minimum: 1}
+      example: 201
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Unique identifier of the user.
+      schema: {type: integer, format: int64, minimum: 1}
+      example: 3
+  examples:
+    LoginRequestExample:
+      summary: Valid login credentials
+      value:
+        email: owner@handmadefinance.local
+        password: ExamplePassword123!
+    LoginSuccessExample:
+      summary: Successful login
+      value:
+        accessToken: eyJhbGciOi...example-token
+        tokenType: Bearer
+        expiresAt: '2026-09-17T10:30:00Z'
+        user:
+          id: 1
+          username: shopowner
+          email: owner@handmadefinance.local
+          fullName: Sample Shop Owner
+          phone: '+84901111222'
+          avatarUrl: https://assets.example.test/avatars/owner.png
+          timezone: Asia/Ho_Chi_Minh
+          role: SHOP_OWNER
+          isActive: true
+          lastLoginAt: '2026-09-17T09:00:00Z'
+          createdAt: '2026-01-10T08:00:00Z'
+          updatedAt: '2026-09-17T09:00:00Z'
+    DashboardSuccessExample:
+      summary: Dashboard KPIs for an active date range
+      value:
+        currencyCode: USD
+        totalIncome: 125.00
+        totalExpense: 48.50
+        netResult: 76.50
+        transactionCount: 2
+        cashflow:
+          - key: '2026-09'
+            income: 125.00
+            expense: 48.50
+            netResult: 76.50
+        incomeByCategory:
+          - categoryId: 1
+            categoryName: Product sales
+            amount: 125.00
+        recentTransactions:
+          - id: 101
+            type: INCOME
+            date: '2026-09-15'
+            description: Etsy order HF-2026-001
+            amount: 125.00
+            currencyCode: USD
+    CategoryListExample:
+      summary: Active categories
+      value:
+        - id: 1
+          name: Product sales
+          description: Revenue from handmade product orders
+          isActive: true
+        - id: 2
+          name: Packaging
+          description: Boxes, labels, and wrapping materials
+          isActive: true
+    IncomeWriteRequestExample:
+      summary: Completed Etsy income
+      value:
+        incomeDate: '2026-09-15'
+        description: Etsy order HF-2026-001
+        incomeCategoryId: 1
+        amount: 125.00
+        currencyCode: USD
+        referenceCode: PAY-10001
+        orderCode: HF-2026-001
+        saleRegion: IN_EU
+        salesChannel: ETSY_STORE
+        recordStatus: COMPLETED
+        productQty: 2
+        unitPrice: 60.00
+        itemTotal: 120.00
+        discountAmount: 5.00
+        discountCode: WELCOME5
+        subtotal: 115.00
+        shippingAmount: 10.00
+        taxAmount: 0.00
+        taxPercent: 0.00
+        amountAfterTax: 125.00
+        note: Paid through Etsy
+    IncomeExample:
+      summary: Active income record
+      value:
+        incomeDate: '2026-09-15'
+        description: Etsy order HF-2026-001
+        incomeCategoryId: 1
+        amount: 125.00
+        currencyCode: USD
+        referenceCode: PAY-10001
+        orderCode: HF-2026-001
+        saleRegion: IN_EU
+        salesChannel: ETSY_STORE
+        recordStatus: COMPLETED
+        productQty: 2
+        unitPrice: 60.00
+        itemTotal: 120.00
+        discountAmount: 5.00
+        discountCode: WELCOME5
+        subtotal: 115.00
+        shippingAmount: 10.00
+        taxAmount: 0.00
+        taxPercent: 0.00
+        amountAfterTax: 125.00
+        note: Paid through Etsy
+        id: 101
+        source: MANUAL
+        importBatchId: null
+        createdBy: 1
+        updatedBy: 1
+        createdAt: '2026-09-15T10:00:00Z'
+        updatedAt: '2026-09-15T10:00:00Z'
+        attachments: []
+    PagedIncomeExample:
+      summary: One-page income list
+      value:
+        items:
+          - incomeDate: '2026-09-15'
+            description: Etsy order HF-2026-001
+            incomeCategoryId: 1
+            amount: 125.00
+            currencyCode: USD
+            referenceCode: PAY-10001
+            orderCode: HF-2026-001
+            saleRegion: IN_EU
+            salesChannel: ETSY_STORE
+            recordStatus: COMPLETED
+            productQty: 2
+            unitPrice: 60.00
+            itemTotal: 120.00
+            discountAmount: 5.00
+            discountCode: WELCOME5
+            subtotal: 115.00
+            shippingAmount: 10.00
+            taxAmount: 0.00
+            taxPercent: 0.00
+            amountAfterTax: 125.00
+            note: Paid through Etsy
+            id: 101
+            source: MANUAL
+            importBatchId: null
+            createdBy: 1
+            updatedBy: 1
+            createdAt: '2026-09-15T10:00:00Z'
+            updatedAt: '2026-09-15T10:00:00Z'
+            attachments: []
+        meta:
+          page: 1
+          pageSize: 20
+          totalItems: 1
+          totalPages: 1
+    ExpenseWriteRequestExample:
+      summary: Completed packaging expense
+      value:
+        expenseDate: '2026-09-14'
+        description: Purchase of packaging materials
+        expenseCategoryId: 2
+        amount: 48.50
+        currencyCode: USD
+        payee: Local Packaging Supplier
+        originScope: DOMESTIC
+        paymentMethod: BANK_TRANSFER
+        recordStatus: COMPLETED
+        taxPercent: 0.00
+        amountAfterTax: 48.50
+        note: Boxes and wrapping paper
+    ExpenseExample:
+      summary: Active expense record
+      value:
+        expenseDate: '2026-09-14'
+        description: Purchase of packaging materials
+        expenseCategoryId: 2
+        amount: 48.50
+        currencyCode: USD
+        payee: Local Packaging Supplier
+        originScope: DOMESTIC
+        paymentMethod: BANK_TRANSFER
+        recordStatus: COMPLETED
+        taxPercent: 0.00
+        amountAfterTax: 48.50
+        note: Boxes and wrapping paper
+        id: 201
+        source: MANUAL
+        importBatchId: null
+        createdBy: 3
+        updatedBy: 3
+        createdAt: '2026-09-14T09:15:00Z'
+        updatedAt: '2026-09-14T09:15:00Z'
+        attachments: []
+    PagedExpenseExample:
+      summary: One-page expense list
+      value:
+        items:
+          - expenseDate: '2026-09-14'
+            description: Purchase of packaging materials
+            expenseCategoryId: 2
+            amount: 48.50
+            currencyCode: USD
+            payee: Local Packaging Supplier
+            originScope: DOMESTIC
+            paymentMethod: BANK_TRANSFER
+            recordStatus: COMPLETED
+            taxPercent: 0.00
+            amountAfterTax: 48.50
+            note: Boxes and wrapping paper
+            id: 201
+            source: MANUAL
+            importBatchId: null
+            createdBy: 3
+            updatedBy: 3
+            createdAt: '2026-09-14T09:15:00Z'
+            updatedAt: '2026-09-14T09:15:00Z'
+            attachments: []
+        meta:
+          page: 1
+          pageSize: 20
+          totalItems: 1
+          totalPages: 1
+    ReportExample:
+      summary: Monthly financial report
+      value:
+        currencyCode: USD
+        totalIncome: 125.00
+        totalExpense: 48.50
+        netResult: 76.50
+        points:
+          - key: '2026-09'
+            income: 125.00
+            expense: 48.50
+            netResult: 76.50
+    ImportPreviewExample:
+      summary: Preview with one valid row
+      value:
+        importType: INCOME
+        originalFileName: september-income.xlsx
+        totalRows: 1
+        validRows: 1
+        invalidRows: 0
+        rows:
+          - rowNumber: 2
+            isValid: true
+            data:
+              incomeDate: '2026-09-15'
+              description: Etsy order HF-2026-001
+              amount: 125.00
+            errors: []
+    ImportBatchExample:
+      summary: Completed import batch
+      value:
+        id: 301
+        importType: INCOME
+        originalFileName: september-income.xlsx
+        status: COMPLETED
+        totalRows: 1
+        validRows: 1
+        importedRows: 1
+        failedRows: 0
+        validationErrors: []
+        importedBy: 1
+        createdAt: '2026-09-16T08:00:00Z'
+        completedAt: '2026-09-16T08:00:05Z'
+    PagedImportExample:
+      summary: One-page import history
+      value:
+        items:
+          - id: 301
+            importType: INCOME
+            originalFileName: september-income.xlsx
+            status: COMPLETED
+            totalRows: 1
+            validRows: 1
+            importedRows: 1
+            failedRows: 0
+            validationErrors: []
+            importedBy: 1
+            createdAt: '2026-09-16T08:00:00Z'
+            completedAt: '2026-09-16T08:00:05Z'
+        meta:
+          page: 1
+          pageSize: 20
+          totalItems: 1
+          totalPages: 1
+    AttachmentExample:
+      summary: Uploaded attachment metadata
+      value:
+        id: 501
+        originalName: packing-receipt.pdf
+        mimeType: application/pdf
+        fileSizeBytes: 24576
+        uploadedBy: 3
+        uploadedAt: '2026-09-14T11:20:00Z'
+    PagedAuditExample:
+      summary: One-page audit log
+      value:
+        items:
+          - id: 9001
+            tableName: incomes
+            recordId: 101
+            action: CREATE
+            module: INCOME
+            detail: Created income HF-2026-001
+            actorUserId: 1
+            oldData: null
+            newData:
+              id: 101
+              amount: 125.00
+            changedAt: '2026-09-15T10:00:00Z'
+            requestId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            ipAddress: 192.0.2.10
+        meta:
+          page: 1
+          pageSize: 20
+          totalItems: 1
+          totalPages: 1
+    CreateUserRequestExample:
+      summary: Create an employee account
+      value:
+        username: employee01
+        email: employee01@handmadefinance.local
+        password: ExamplePassword123!
+        fullName: Sample Employee
+        phone: '+84901234567'
+        avatarUrl: https://assets.example.test/avatars/employee01.png
+        timezone: Asia/Ho_Chi_Minh
+        role: EMPLOYEE
+        isActive: true
+    UpdateUserRequestExample:
+      summary: Update an employee account
+      value:
+        username: employee01
+        email: employee01@handmadefinance.local
+        fullName: Sample Employee
+        phone: '+84901234567'
+        avatarUrl: https://assets.example.test/avatars/employee01.png
+        timezone: Asia/Ho_Chi_Minh
+        role: EMPLOYEE
+        isActive: true
+    UpdateUserStatusRequestExample:
+      summary: Disable a user account
+      value:
+        isActive: false
+    UserExample:
+      summary: Employee account
+      value:
+        id: 3
+        username: employee01
+        email: employee01@handmadefinance.local
+        fullName: Sample Employee
+        phone: '+84901234567'
+        avatarUrl: https://assets.example.test/avatars/employee01.png
+        timezone: Asia/Ho_Chi_Minh
+        role: EMPLOYEE
+        isActive: true
+        lastLoginAt: '2026-09-16T07:45:00Z'
+        createdAt: '2026-02-01T08:00:00Z'
+        updatedAt: '2026-09-16T07:45:00Z'
+    PagedUserExample:
+      summary: One-page user list
+      value:
+        items:
+          - id: 3
+            username: employee01
+            email: employee01@handmadefinance.local
+            fullName: Sample Employee
+            phone: '+84901234567'
+            avatarUrl: https://assets.example.test/avatars/employee01.png
+            timezone: Asia/Ho_Chi_Minh
+            role: EMPLOYEE
+            isActive: true
+            lastLoginAt: '2026-09-16T07:45:00Z'
+            createdAt: '2026-02-01T08:00:00Z'
+            updatedAt: '2026-09-16T07:45:00Z'
+        meta:
+          page: 1
+          pageSize: 20
+          totalItems: 1
+          totalPages: 1
+    ProfileExample:
+      summary: Authenticated shop owner profile
+      value:
+        id: 1
+        username: shopowner
+        email: owner@handmadefinance.local
+        fullName: Sample Shop Owner
+        phone: '+84901111222'
+        avatarUrl: https://assets.example.test/avatars/owner.png
+        timezone: Asia/Ho_Chi_Minh
+        role: SHOP_OWNER
+        isActive: true
+        lastLoginAt: '2026-09-17T09:00:00Z'
+        createdAt: '2026-01-10T08:00:00Z'
+        updatedAt: '2026-09-17T09:00:00Z'
+    UpdateProfileRequestExample:
+      summary: Update the current profile
+      value:
+        fullName: Sample Shop Owner
+        phone: '+84901111222'
+        avatarUrl: https://assets.example.test/avatars/owner.png
+        timezone: Asia/Ho_Chi_Minh
+    ChangePasswordRequestExample:
+      summary: Change the current user's password
+      value:
+        currentPassword: CurrentExamplePassword123!
+        newPassword: NewExamplePassword456!
+    ValidationErrorExample:
+      summary: Request validation failed
+      value:
+        type: /problems/validation-error
+        title: Request validation failed
+        status: 400
+        errorCode: VALIDATION_FAILED
+        detail: One or more request fields are invalid.
+        instance: /api/v1/incomes
+        traceId: 00-example-trace-id
+        errors:
+          amount:
+            - Amount must be greater than zero.
+    InvalidCredentialsErrorExample:
+      summary: Invalid login credentials
+      value:
+        type: /problems/invalid-credentials
+        title: Invalid credentials
+        status: 401
+        errorCode: AUTH_INVALID_CREDENTIALS
+        detail: The supplied email or password is incorrect.
+        instance: /api/v1/auth/login
+        traceId: 00-example-trace-id
+    UnauthorizedErrorExample:
+      summary: Missing or invalid access token
+      value:
+        type: /problems/unauthorized
+        title: Authentication required
+        status: 401
+        errorCode: AUTH_TOKEN_INVALID
+        detail: The access token is missing, expired, or invalid.
+        instance: /api/v1/incomes
+        traceId: 00-example-trace-id
+    ForbiddenErrorExample:
+      summary: Insufficient permissions
+      value:
+        type: /problems/forbidden
+        title: Access denied
+        status: 403
+        errorCode: ACCESS_DENIED
+        detail: The authenticated user is not allowed to perform this operation.
+        instance: /api/v1/users
+        traceId: 00-example-trace-id
+    NotFoundErrorExample:
+      summary: Resource not found
+      value:
+        type: /problems/resource-not-found
+        title: Resource not found
+        status: 404
+        errorCode: RESOURCE_NOT_FOUND
+        detail: The requested resource does not exist or is no longer active.
+        instance: /api/v1/incomes/101
+        traceId: 00-example-trace-id
+    ConflictErrorExample:
+      summary: Business-state conflict
+      value:
+        type: /problems/business-conflict
+        title: Business conflict
+        status: 409
+        errorCode: BUSINESS_CONFLICT
+        detail: The request conflicts with the current state of the resource.
+        instance: /api/v1/incomes
+        traceId: 00-example-trace-id
+    PayloadTooLargeErrorExample:
+      summary: Uploaded file exceeds the configured limit
+      value:
+        type: /problems/payload-too-large
+        title: Uploaded file is too large
+        status: 413
+        errorCode: FILE_TOO_LARGE
+        detail: The uploaded file exceeds the configured size limit.
+        instance: /api/v1/imports
+        traceId: 00-example-trace-id
+    InternalErrorExample:
+      summary: Unexpected server failure
+      value:
+        type: /problems/internal-server-error
+        title: Internal server error
+        status: 500
+        errorCode: INTERNAL_SERVER_ERROR
+        detail: An unexpected server error occurred.
+        instance: /api/v1/incomes
+        traceId: 00-example-trace-id
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ValidationProblemDetails'}
+          examples:
+            validationFailed:
+              $ref: '#/components/examples/ValidationErrorExample'
+    InvalidCredentials:
+      description: Login failed because the email or password is incorrect
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            invalidCredentials:
+              $ref: '#/components/examples/InvalidCredentialsErrorExample'
+    Unauthorized:
+      description: Authentication is missing or invalid
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            unauthorized:
+              $ref: '#/components/examples/UnauthorizedErrorExample'
+    Forbidden:
+      description: The authenticated user is not allowed to perform the operation
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            forbidden:
+              $ref: '#/components/examples/ForbiddenErrorExample'
+    NotFound:
+      description: Resource does not exist or has been soft-deleted
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            notFound:
+              $ref: '#/components/examples/NotFoundErrorExample'
+    Conflict:
+      description: Unique or business-state conflict
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            conflict:
+              $ref: '#/components/examples/ConflictErrorExample'
+    PayloadTooLarge:
+      description: Uploaded file exceeds the configured limit
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            payloadTooLarge:
+              $ref: '#/components/examples/PayloadTooLargeErrorExample'
+    InternalError:
+      description: Unexpected server failure
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+          examples:
+            internalError:
+              $ref: '#/components/examples/InternalErrorExample'
+  schemas:
+    UserRole:
+      type: string
+      description: Application role used for authorization.
+      enum: [ADMIN, SHOP_OWNER, EMPLOYEE, VIEWER]
+    RecordStatus:
+      type: string
+      description: Lifecycle status of an income or expense record.
+      enum: [DRAFT, PENDING, COMPLETED]
+    DataSource:
+      type: string
+      description: How the record was created.
+      enum: [MANUAL, EXCEL_IMPORT]
+    SaleRegion:
+      type: string
+      nullable: true
+      description: Sale region for an income record, when known.
+      enum: [IN_EU, OUTSIDE_EU]
+    SalesChannel:
+      type: string
+      nullable: true
+      description: Channel through which the income was received, when known.
+      enum: [ETSY_STORE, WEBSITE_DIRECT, INSTAGRAM_SHOP, LOCAL_MARKET, B2B_WHOLESALE]
+    OriginScope:
+      type: string
+      description: Whether an expense originated domestically or internationally.
+      enum: [DOMESTIC, INTERNATIONAL]
+    PaymentMethod:
+      type: string
+      nullable: true
+      description: How an expense was paid, when known.
+      enum: [CREDIT_CARD, BANK_TRANSFER, CASH, PAYPAL]
+    ImportType:
+      type: string
+      description: Whether an Excel import contains income or expense rows.
+      enum: [INCOME, EXPENSE]
+    ImportStatus:
+      type: string
+      description: Processing status of an import batch.
+      enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+    AuditAction:
+      type: string
+      description: Business audit action. Persistence maps lower-level SQL trigger events to this taxonomy.
+      enum: [CREATE, UPDATE, SOFT_DELETE, RESTORE, LOGIN, EXPORT, IMPORT]
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email: {type: string, format: email, maxLength: 255}
+        password: {type: string, format: password, minLength: 1, maxLength: 128}
+    LoginResponse:
+      type: object
+      required: [accessToken, tokenType, expiresAt, user]
+      properties:
+        accessToken:
+          type: string
+          readOnly: true
+          description: Short-lived JWT access token. V1 does not return a refresh token.
+        tokenType: {type: string, enum: [Bearer], readOnly: true}
+        expiresAt: {type: string, format: date-time, readOnly: true}
+        user: {$ref: '#/components/schemas/User'}
+    User:
+      type: object
+      required: [id, username, fullName, timezone, role, isActive, createdAt, updatedAt]
+      properties:
+        id: {type: integer, format: int64, readOnly: true}
+        username: {type: string, maxLength: 100}
+        email: {type: string, format: email, maxLength: 255, nullable: true}
+        fullName: {type: string, maxLength: 255}
+        phone: {type: string, maxLength: 30, nullable: true}
+        avatarUrl: {type: string, format: uri, nullable: true}
+        timezone: {type: string, maxLength: 64, default: Asia/Ho_Chi_Minh}
+        role: {$ref: '#/components/schemas/UserRole'}
+        isActive: {type: boolean}
+        lastLoginAt: {type: string, format: date-time, nullable: true, readOnly: true}
+        createdAt: {type: string, format: date-time, readOnly: true}
+        updatedAt: {type: string, format: date-time, readOnly: true}
+    CreateUserRequest:
+      type: object
+      required: [username, email, password, fullName, role, isActive]
+      additionalProperties: false
+      properties:
+        username: {type: string, minLength: 1, maxLength: 100}
+        email: {type: string, format: email, maxLength: 255}
+        password: {type: string, format: password, minLength: 4, maxLength: 128}
+        fullName: {type: string, minLength: 1, maxLength: 255}
+        phone: {type: string, maxLength: 30, nullable: true}
+        avatarUrl: {type: string, format: uri, nullable: true}
+        timezone: {type: string, maxLength: 64, default: Asia/Ho_Chi_Minh}
+        role: {$ref: '#/components/schemas/UserRole'}
+        isActive: {type: boolean, default: true}
+    UpdateUserRequest:
+      type: object
+      required: [username, email, fullName, role, isActive]
+      additionalProperties: false
+      properties:
+        username: {type: string, minLength: 1, maxLength: 100}
+        email: {type: string, format: email, maxLength: 255}
+        fullName: {type: string, minLength: 1, maxLength: 255}
+        phone: {type: string, maxLength: 30, nullable: true}
+        avatarUrl: {type: string, format: uri, nullable: true}
+        timezone: {type: string, maxLength: 64}
+        role: {$ref: '#/components/schemas/UserRole'}
+        isActive: {type: boolean}
+    UpdateProfileRequest:
+      type: object
+      required: [fullName, timezone]
+      additionalProperties: false
+      properties:
+        fullName: {type: string, minLength: 1, maxLength: 255}
+        phone: {type: string, maxLength: 30, nullable: true}
+        avatarUrl: {type: string, format: uri, nullable: true}
+        timezone: {type: string, maxLength: 64}
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      additionalProperties: false
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 128
+          description: Existing password for the authenticated user.
+        newPassword:
+          type: string
+          format: password
+          minLength: 4
+          maxLength: 128
+          description: Replacement password.
+
+    Category:
+      type: object
+      required: [id, name, isActive]
+      properties:
+        id: {type: integer, format: int64, readOnly: true}
+        name: {type: string, maxLength: 150}
+        description: {type: string, nullable: true}
+        isActive: {type: boolean}
+
+    IncomeWriteRequest:
+      type: object
+      required: [incomeDate, description, incomeCategoryId, amount, currencyCode, recordStatus, discountAmount, shippingAmount, taxAmount, taxPercent, amountAfterTax]
+      additionalProperties: false
+      properties:
+        incomeDate: {type: string, format: date}
+        description: {type: string, minLength: 1}
+        incomeCategoryId: {type: integer, format: int64, minimum: 1}
+        amount:
+          type: number
+          format: decimal
+          exclusiveMinimum: true
+          minimum: 0
+          multipleOf: 0.01
+          description: Recorded income amount in USD. Must be greater than zero.
+        currencyCode: {type: string, enum: [USD], default: USD}
+        referenceCode: {type: string, maxLength: 150, nullable: true}
+        orderCode: {type: string, maxLength: 150, nullable: true}
+        saleRegion: {$ref: '#/components/schemas/SaleRegion'}
+        salesChannel: {$ref: '#/components/schemas/SalesChannel'}
+        recordStatus: {$ref: '#/components/schemas/RecordStatus'}
+        productQty: {type: integer, minimum: 1, nullable: true}
+        unitPrice: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, nullable: true}
+        itemTotal: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, nullable: true}
+        discountAmount: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, default: 0}
+        discountCode: {type: string, maxLength: 80, nullable: true}
+        subtotal: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, nullable: true}
+        shippingAmount: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, default: 0}
+        taxAmount: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, default: 0}
+        taxPercent: {type: number, format: decimal, minimum: 0, maximum: 100, multipleOf: 0.01, default: 0}
+        amountAfterTax:
+          type: number
+          format: decimal
+          minimum: 0
+          multipleOf: 0.01
+          description: 'Final USD amount after discount, shipping, and tax.'
+        note: {type: string, nullable: true}
+    Income:
+      type: object
+      required: [incomeDate, description, incomeCategoryId, amount, currencyCode, recordStatus, discountAmount, shippingAmount, taxAmount, taxPercent, amountAfterTax, id, source, createdAt, updatedAt, attachments]
+      properties:
+        incomeDate: {type: string, format: date}
+        description: {type: string, minLength: 1}
+        incomeCategoryId: {type: integer, format: int64, minimum: 1}
+        amount:
+          type: number
+          format: decimal
+          exclusiveMinimum: true
+          minimum: 0
+          multipleOf: 0.01
+          description: Recorded income amount in USD. Must be greater than zero.
+        currencyCode: {type: string, enum: [USD], default: USD}
+        referenceCode: {type: string, maxLength: 150, nullable: true}
+        orderCode: {type: string, maxLength: 150, nullable: true}
+        saleRegion: {$ref: '#/components/schemas/SaleRegion'}
+        salesChannel: {$ref: '#/components/schemas/SalesChannel'}
+        recordStatus: {$ref: '#/components/schemas/RecordStatus'}
+        productQty: {type: integer, minimum: 1, nullable: true}
+        unitPrice: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, nullable: true}
+        itemTotal: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, nullable: true}
+        discountAmount: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, default: 0}
+        discountCode: {type: string, maxLength: 80, nullable: true}
+        subtotal: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, nullable: true}
+        shippingAmount: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, default: 0}
+        taxAmount: {type: number, format: decimal, minimum: 0, multipleOf: 0.01, default: 0}
+        taxPercent: {type: number, format: decimal, minimum: 0, maximum: 100, multipleOf: 0.01, default: 0}
+        amountAfterTax:
+          type: number
+          format: decimal
+          minimum: 0
+          multipleOf: 0.01
+          description: 'Final USD amount after discount, shipping, and tax.'
+        note: {type: string, nullable: true}
+        id: {type: integer, format: int64, readOnly: true}
+        source: {$ref: '#/components/schemas/DataSource'}
+        importBatchId:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+          description: Import batch that created the record when source is EXCEL_IMPORT.
+        createdBy: {type: integer, format: int64, nullable: true, readOnly: true}
+        updatedBy: {type: integer, format: int64, nullable: true, readOnly: true}
+        createdAt: {type: string, format: date-time, readOnly: true}
+        updatedAt: {type: string, format: date-time, readOnly: true}
+        attachments:
+          type: array
+          readOnly: true
+          items: {$ref: '#/components/schemas/Attachment'}
+
+    ExpenseWriteRequest:
+      type: object
+      required: [expenseDate, description, expenseCategoryId, amount, currencyCode, originScope, recordStatus, taxPercent, amountAfterTax]
+      additionalProperties: false
+      properties:
+        expenseDate: {type: string, format: date}
+        description: {type: string, minLength: 1}
+        expenseCategoryId: {type: integer, format: int64, minimum: 1}
+        amount:
+          type: number
+          format: decimal
+          exclusiveMinimum: true
+          minimum: 0
+          multipleOf: 0.01
+          description: Recorded expense amount in USD. Must be greater than zero.
+        currencyCode: {type: string, enum: [USD], default: USD}
+        payee: {type: string, maxLength: 255, nullable: true}
+        originScope: {$ref: '#/components/schemas/OriginScope'}
+        paymentMethod: {$ref: '#/components/schemas/PaymentMethod'}
+        recordStatus: {$ref: '#/components/schemas/RecordStatus'}
+        taxPercent: {type: number, format: decimal, minimum: 0, maximum: 100, multipleOf: 0.01, default: 0}
+        amountAfterTax:
+          type: number
+          format: decimal
+          exclusiveMinimum: true
+          minimum: 0
+          multipleOf: 0.01
+          description: Final USD amount after tax. Must be greater than zero.
+        note: {type: string, nullable: true}
+    Expense:
+      type: object
+      required: [expenseDate, description, expenseCategoryId, amount, currencyCode, originScope, recordStatus, taxPercent, amountAfterTax, id, source, createdAt, updatedAt, attachments]
+      properties:
+        expenseDate: {type: string, format: date}
+        description: {type: string, minLength: 1}
+        expenseCategoryId: {type: integer, format: int64, minimum: 1}
+        amount:
+          type: number
+          format: decimal
+          exclusiveMinimum: true
+          minimum: 0
+          multipleOf: 0.01
+          description: Recorded expense amount in USD. Must be greater than zero.
+        currencyCode: {type: string, enum: [USD], default: USD}
+        payee: {type: string, maxLength: 255, nullable: true}
+        originScope: {$ref: '#/components/schemas/OriginScope'}
+        paymentMethod: {$ref: '#/components/schemas/PaymentMethod'}
+        recordStatus: {$ref: '#/components/schemas/RecordStatus'}
+        taxPercent: {type: number, format: decimal, minimum: 0, maximum: 100, multipleOf: 0.01, default: 0}
+        amountAfterTax:
+          type: number
+          format: decimal
+          exclusiveMinimum: true
+          minimum: 0
+          multipleOf: 0.01
+          description: Final USD amount after tax. Must be greater than zero.
+        note: {type: string, nullable: true}
+        id: {type: integer, format: int64, readOnly: true}
+        source: {$ref: '#/components/schemas/DataSource'}
+        importBatchId:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+          description: Import batch that created the record when source is EXCEL_IMPORT.
+        createdBy: {type: integer, format: int64, nullable: true, readOnly: true}
+        updatedBy: {type: integer, format: int64, nullable: true, readOnly: true}
+        createdAt: {type: string, format: date-time, readOnly: true}
+        updatedAt: {type: string, format: date-time, readOnly: true}
+        attachments:
+          type: array
+          readOnly: true
+          items: {$ref: '#/components/schemas/Attachment'}
+
+    Attachment:
+      type: object
+      required: [id, originalName, uploadedAt]
+      properties:
+        id: {type: integer, format: int64, readOnly: true}
+        originalName: {type: string, maxLength: 500, readOnly: true}
+        mimeType: {type: string, maxLength: 150, nullable: true, readOnly: true}
+        fileSizeBytes: {type: integer, format: int64, minimum: 0, nullable: true, readOnly: true}
+        uploadedBy: {type: integer, format: int64, nullable: true, readOnly: true}
+        uploadedAt: {type: string, format: date-time, readOnly: true}
+
+    ImportPreview:
+      type: object
+      required: [importType, originalFileName, totalRows, validRows, invalidRows, rows]
+      properties:
+        importType: {$ref: '#/components/schemas/ImportType'}
+        originalFileName: {type: string, maxLength: 500}
+        totalRows: {type: integer, minimum: 0}
+        validRows: {type: integer, minimum: 0}
+        invalidRows: {type: integer, minimum: 0}
+        rows:
+          type: array
+          items:
+            type: object
+            required: [rowNumber, isValid, data, errors]
+            properties:
+              rowNumber: {type: integer, minimum: 1}
+              isValid: {type: boolean}
+              data: {type: object, additionalProperties: true}
+              errors:
+                type: array
+                items: {type: string}
+    ImportBatch:
+      type: object
+      required: [id, importType, originalFileName, status, totalRows, validRows, importedRows, failedRows, validationErrors, createdAt]
+      properties:
+        id: {type: integer, format: int64, readOnly: true}
+        importType: {$ref: '#/components/schemas/ImportType'}
+        originalFileName: {type: string, maxLength: 500}
+        status: {$ref: '#/components/schemas/ImportStatus'}
+        totalRows: {type: integer, minimum: 0}
+        validRows: {type: integer, minimum: 0}
+        importedRows: {type: integer, minimum: 0}
+        failedRows: {type: integer, minimum: 0}
+        validationErrors:
+          type: array
+          items:
+            type: object
+            required: [rowNumber, messages]
+            properties:
+              rowNumber: {type: integer, minimum: 1}
+              messages:
+                type: array
+                items: {type: string}
+        importedBy: {type: integer, format: int64, nullable: true, readOnly: true}
+        createdAt: {type: string, format: date-time, readOnly: true}
+        completedAt: {type: string, format: date-time, nullable: true, readOnly: true}
+
+    AuditLog:
+      type: object
+      required: [id, action, changedAt]
+      properties:
+        id: {type: integer, format: int64, readOnly: true}
+        tableName: {type: string, maxLength: 100, nullable: true}
+        recordId: {type: integer, format: int64, nullable: true}
+        action: {$ref: '#/components/schemas/AuditAction'}
+        module: {type: string, maxLength: 100, nullable: true}
+        detail: {type: string, nullable: true}
+        actorUserId: {type: integer, format: int64, nullable: true}
+        oldData: {type: object, nullable: true, additionalProperties: true}
+        newData: {type: object, nullable: true, additionalProperties: true}
+        changedAt: {type: string, format: date-time, readOnly: true}
+        requestId: {type: string, format: uuid, nullable: true}
+        ipAddress: {type: string, nullable: true}
+
+    DashboardResponse:
+      type: object
+      required: [currencyCode, totalIncome, totalExpense, netResult, transactionCount, cashflow, incomeByCategory, recentTransactions]
+      properties:
+        currencyCode: {type: string, enum: [USD]}
+        totalIncome: {type: number, format: decimal}
+        totalExpense: {type: number, format: decimal}
+        netResult: {type: number, format: decimal}
+        transactionCount: {type: integer, minimum: 0}
+        cashflow:
+          type: array
+          items: {$ref: '#/components/schemas/ReportPoint'}
+        incomeByCategory:
+          type: array
+          items: {$ref: '#/components/schemas/CategoryAmount'}
+        recentTransactions:
+          type: array
+          items: {$ref: '#/components/schemas/TransactionSummary'}
+    ReportResponse:
+      type: object
+      required: [currencyCode, totalIncome, totalExpense, netResult, points]
+      properties:
+        currencyCode: {type: string, enum: [USD]}
+        totalIncome: {type: number, format: decimal}
+        totalExpense: {type: number, format: decimal}
+        netResult: {type: number, format: decimal}
+        points:
+          type: array
+          items: {$ref: '#/components/schemas/ReportPoint'}
+    ReportPoint:
+      type: object
+      required: [key, income, expense, netResult]
+      properties:
+        key:
+          type: string
+          description: Aggregation bucket such as a month (`YYYY-MM`), a calendar day, or a category name.
+        income: {type: number, format: decimal}
+        expense: {type: number, format: decimal}
+        netResult: {type: number, format: decimal}
+    CategoryAmount:
+      type: object
+      required: [categoryId, categoryName, amount]
+      properties:
+        categoryId: {type: integer, format: int64}
+        categoryName: {type: string}
+        amount: {type: number, format: decimal}
+    TransactionSummary:
+      type: object
+      required: [id, type, date, description, amount, currencyCode]
+      properties:
+        id: {type: integer, format: int64}
+        type: {type: string, enum: [INCOME, EXPENSE]}
+        date: {type: string, format: date}
+        description: {type: string}
+        amount: {type: number, format: decimal}
+        currencyCode: {type: string, enum: [USD]}
+
+    PageMeta:
+      type: object
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1, maximum: 100}
+        totalItems: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
+    PagedIncomeResponse:
+      type: object
+      required: [items, meta]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Income'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    PagedExpenseResponse:
+      type: object
+      required: [items, meta]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Expense'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    PagedImportResponse:
+      type: object
+      required: [items, meta]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/ImportBatch'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    PagedAuditResponse:
+      type: object
+      required: [items, meta]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AuditLog'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+    PagedUserResponse:
+      type: object
+      required: [items, meta]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/User'}}
+        meta: {$ref: '#/components/schemas/PageMeta'}
+
+    ProblemDetails:
+      type: object
+      required: [type, title, status, errorCode]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        errorCode:
+          type: string
+          description: Stable machine-readable application error code.
+          example: RESOURCE_NOT_FOUND
+        detail: {type: string, nullable: true}
+        instance: {type: string, format: uri-reference, nullable: true}
+        traceId: {type: string, nullable: true}
+    ValidationProblemDetails:
+      allOf:
+        - {$ref: '#/components/schemas/ProblemDetails'}
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: object
+              additionalProperties:
+                type: array
+                items: {type: string}
