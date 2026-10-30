@@ -3,7 +3,7 @@
 > **Trạng thái thiết kế:** TARGET V1  
 > **Trạng thái thực thi:** HOÀN THIỆN ĐẦY ĐỦ (FastAPI Backend + React Console)
 
-Tên sản phẩm trong giao diện: **Distributed Workflow Orchestration Platform (DWOP) / NexusDAG**.
+Tên sản phẩm trong giao diện: **FlowForge — Distributed Workflow Orchestration Platform (DWOP)**.
 
 ---
 

@@ -1,19 +1,80 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { useFinance } from "../../../lib/store";
 import { I } from "../../../lib/icons";
 import { api } from "../../../lib/api";
 
 export default function ExecutionsPage() {
-  const { executions, cancelExecution, can, toast } = useFinance();
+  const { executions, cancelExecution, can, toast, loadExecutions } = useFinance();
+  const location = useLocation();
+  const highlightId = location.state?.highlightId;
+
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [selectedEx, setSelectedEx] = useState(null);
   const [aiDiagnosis, setAiDiagnosis] = useState(null);
   const [diagnosing, setDiagnosing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filtered = executions.filter((e) => {
-    if (filterStatus === "ALL") return true;
-    return e.status === filterStatus;
-  });
+  // Track if initial auto-select has already fired to prevent modal from reopening on poll
+  const hasAutoSelectedRef = useRef(false);
+
+  // Poll executions regularly to track real-time worker progress
+  useEffect(() => {
+    loadExecutions();
+    const timer = setInterval(() => {
+      loadExecutions();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [loadExecutions]);
+
+  // Auto-select execution AT MOST ONCE when redirected with highlightId
+  useEffect(() => {
+    if (highlightId && !hasAutoSelectedRef.current && executions.length > 0) {
+      const found = executions.find((e) => e.id === Number(highlightId) || e.id === highlightId);
+      if (found) {
+        hasAutoSelectedRef.current = true;
+        setSelectedEx(found);
+      }
+    }
+  }, [highlightId, executions]);
+
+  // Close modal handler: guarantees it stays closed and will never re-open automatically
+  const handleCloseModal = () => {
+    setSelectedEx(null);
+    setAiDiagnosis(null);
+    hasAutoSelectedRef.current = true;
+  };
+
+  // Keyboard shortcut: Press ESC to close modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        handleCloseModal();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Keep modal in sync with live polled execution tasks
+  const activeEx = useMemo(() => {
+    if (!selectedEx) return null;
+    return executions.find((e) => e.id === selectedEx.id) || selectedEx;
+  }, [selectedEx, executions]);
+
+  const filtered = useMemo(() => {
+    return executions.filter((e) => {
+      if (filterStatus === "ALL") return true;
+      return e.status === filterStatus;
+    });
+  }, [executions, filterStatus]);
+
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await loadExecutions();
+    setRefreshing(false);
+    toast("Đã đồng bộ trạng thái thực thi thời gian thực!", "success");
+  };
 
   const handleAiDiagnose = async (instanceId) => {
     setDiagnosing(true);
@@ -29,20 +90,32 @@ export default function ExecutionsPage() {
     }
   };
 
-  const statusCounts = {
+  const statusCounts = useMemo(() => ({
     ALL: executions.length,
     RUNNING: executions.filter((e) => e.status === "RUNNING").length,
     COMPLETED: executions.filter((e) => e.status === "COMPLETED").length,
     FAILED: executions.filter((e) => e.status === "FAILED").length,
     CANCELLED: executions.filter((e) => e.status === "CANCELLED").length,
-  };
+  }), [executions]);
 
   return (
     <div className="orch-page-wrap">
       {/* Header */}
       <div className="orch-page-header">
         <div>
-          <h2 className="orch-page-heading">Lượt Chạy Phân Tán (Executions)</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+            <h2 className="orch-page-heading" style={{ margin: 0 }}>Lượt Chạy Phân Tán (Executions)</h2>
+            <button
+              type="button"
+              className="orch-btn orch-btn-ghost orch-btn-xs"
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+              title="Đồng bộ ngay lập tức từ Orchestrator"
+            >
+              <I name="rotate-cw" size={12} className={refreshing ? "orch-spin" : ""} />
+              <span>{refreshing ? "Đang tải..." : "Làm mới"}</span>
+            </button>
+          </div>
           <p className="orch-page-sub">
             Theo dõi vòng đời thực thi DAG, dispatch tác vụ worker và chẩn đoán sự cố tự động bằng AI
           </p>
@@ -93,18 +166,26 @@ export default function ExecutionsPage() {
                 const isRunning = ex.status === "RUNNING";
                 const isCompleted = ex.status === "COMPLETED";
                 const isFailed = ex.status === "FAILED";
+                const isHighlighted = highlightId && (ex.id === Number(highlightId) || ex.id === highlightId);
 
                 return (
                   <tr
                     key={ex.id}
-                    className={`orch-table-row ${selectedEx?.id === ex.id ? "selected" : ""}`}
+                    className={`orch-table-row ${activeEx?.id === ex.id ? "selected" : ""} ${isHighlighted ? "highlighted" : ""}`}
                     onClick={() => {
                       setSelectedEx(ex);
                       setAiDiagnosis(null);
                     }}
                     style={{ cursor: "pointer" }}
                   >
-                    <td><code className="orch-code-pill">#{ex.id}</code></td>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <code className="orch-code-pill">#{ex.id}</code>
+                        {isHighlighted && (
+                          <span className="orch-tag purple" style={{ fontSize: "0.62rem", padding: "1px 5px" }}>Mới</span>
+                        )}
+                      </div>
+                    </td>
                     <td>
                       <div className="orch-cell-workflow">
                         <strong className="orch-cell-wfname">{ex.workflowName}</strong>
@@ -125,11 +206,19 @@ export default function ExecutionsPage() {
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="orch-step-count">{completedSteps}/{totalSteps} steps</span>
+                        <span className="orch-step-count">{completedSteps}/{totalSteps} steps ({pct}%)</span>
                       </div>
                     </td>
-                    <td><span className="orch-cell-time">{new Date(ex.createdAt).toLocaleTimeString()}</span></td>
-                    <td><span className="orch-cell-time">{ex.completedAt ? new Date(ex.completedAt).toLocaleTimeString() : isRunning ? "Đang xử lý..." : "—"}</span></td>
+                    <td>
+                      <span className="orch-cell-time">
+                        {ex.startedAt ? new Date(ex.startedAt).toLocaleTimeString() : ex.createdAt ? new Date(ex.createdAt).toLocaleTimeString() : "—"}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="orch-cell-time">
+                        {ex.completedAt ? new Date(ex.completedAt).toLocaleTimeString() : isRunning ? "Đang xử lý..." : "—"}
+                      </span>
+                    </td>
                     <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
                       <div className="orch-btn-group-right">
                         {ex.status === "RUNNING" && can("executionCancel") && (
@@ -155,12 +244,42 @@ export default function ExecutionsPage() {
                   </tr>
                 );
               })}
+
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="orch-empty-cell">
-                    <div className="orch-empty-state">
-                      <I name="inbox" size={32} />
-                      <p>Không tìm thấy lượt chạy nào với bộ lọc này.</p>
+                    <div className="orch-empty-state" style={{ padding: "36px 16px", textAlign: "center" }}>
+                      <div style={{ display: "inline-flex", padding: "12px", borderRadius: "50%", background: "var(--bg-subtle)", marginBottom: "12px", color: "var(--text-muted)" }}>
+                        <I name="git-fork" size={28} />
+                      </div>
+                      <p style={{ margin: "0 0 10px", fontSize: "0.92rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                        {filterStatus === "RUNNING"
+                          ? "Không có lượt chạy nào đang trong trạng thái Đang chạy."
+                          : "Không tìm thấy lượt chạy nào với bộ lọc này."}
+                      </p>
+                      {filterStatus === "RUNNING" && statusCounts.COMPLETED > 0 && (
+                        <p style={{ margin: "0 0 16px", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                          Các lượt chạy trước đó đã hoàn thành thành công ({statusCounts.COMPLETED} lượt chạy).
+                        </p>
+                      )}
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                        <button
+                          type="button"
+                          className="orch-btn orch-btn-secondary orch-btn-xs"
+                          onClick={() => setFilterStatus("ALL")}
+                        >
+                          Xem Tất Cả ({statusCounts.ALL})
+                        </button>
+                        {statusCounts.COMPLETED > 0 && (
+                          <button
+                            type="button"
+                            className="orch-btn orch-btn-primary orch-btn-xs"
+                            onClick={() => setFilterStatus("COMPLETED")}
+                          >
+                            Xem Đã Hoàn Thành ({statusCounts.COMPLETED})
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -171,45 +290,49 @@ export default function ExecutionsPage() {
       </div>
 
       {/* Execution Detail Modal / Drawer */}
-      {selectedEx && (
-        <div className="orch-modal-backdrop" onClick={() => setSelectedEx(null)}>
+      {activeEx && (
+        <div className="orch-modal-backdrop" onClick={handleCloseModal}>
           <div className="orch-modal orch-modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="orch-modal-head">
               <div className="orch-modal-title-group">
-                <div className={`orch-modal-icon-badge ${selectedEx.status === "RUNNING" ? "blue" : selectedEx.status === "COMPLETED" ? "emerald" : "rose"}`}>
-                  <I name={selectedEx.status === "COMPLETED" ? "check-circle" : selectedEx.status === "RUNNING" ? "play" : "triangle-alert"} size={18} />
+                <div className={`orch-modal-icon-badge ${activeEx.status === "RUNNING" ? "blue" : activeEx.status === "COMPLETED" ? "emerald" : "rose"}`}>
+                  <I name={activeEx.status === "COMPLETED" ? "check-circle" : activeEx.status === "RUNNING" ? "play" : "triangle-alert"} size={18} />
                 </div>
                 <div>
-                  <h3 className="orch-modal-title">Chi Tiết Lượt Chạy #{selectedEx.id}</h3>
+                  <h3 className="orch-modal-title">Chi Tiết Lượt Chạy #{activeEx.id}</h3>
                   <span className="orch-modal-subtitle">
-                    {selectedEx.workflowName} (v{selectedEx.version}) • Khởi tạo: {new Date(selectedEx.createdAt).toLocaleString()}
+                    {activeEx.workflowName} (v{activeEx.version}) • Khởi tạo: {activeEx.createdAt ? new Date(activeEx.createdAt).toLocaleString() : "—"}
                   </span>
                 </div>
               </div>
 
               <div className="orch-header-actions">
-                {selectedEx.status === "FAILED" && (
+                {activeEx.status === "FAILED" && (
                   <button
                     className="orch-btn orch-btn-ai orch-btn-sm"
-                    onClick={() => handleAiDiagnose(selectedEx.id)}
+                    onClick={() => handleAiDiagnose(activeEx.id)}
                     disabled={diagnosing}
                   >
                     <I name="sparkles" size={14} />
                     <span>{diagnosing ? "AI đang chẩn đoán..." : "AI Chẩn Đoán Lỗi"}</span>
                   </button>
                 )}
-                {selectedEx.status === "RUNNING" && can("executionCancel") && (
+                {activeEx.status === "RUNNING" && can("executionCancel") && (
                   <button
                     className="orch-btn orch-btn-danger orch-btn-sm"
-                    onClick={() => {
-                      cancelExecution(selectedEx.id);
-                      setSelectedEx(null);
-                    }}
+                    onClick={() => cancelExecution(activeEx.id)}
                   >
                     Hủy lượt chạy
                   </button>
                 )}
-                <button className="orch-icon-btn" onClick={() => setSelectedEx(null)}><I name="x" size={18} /></button>
+                <button
+                  type="button"
+                  className="orch-icon-btn"
+                  onClick={handleCloseModal}
+                  title="Đóng cửa sổ này (ESC)"
+                >
+                  <I name="x" size={18} />
+                </button>
               </div>
             </div>
 
@@ -241,37 +364,40 @@ export default function ExecutionsPage() {
                 <div className="orch-meta-item">
                   <span className="orch-meta-label">Trạng thái</span>
                   <span className="orch-meta-val">
-                    <span className={`orch-badge-status ${selectedEx.status === "RUNNING" ? "running" : selectedEx.status === "COMPLETED" ? "completed" : "failed"}`}>
-                      {selectedEx.status}
+                    <span className={`orch-badge-status ${activeEx.status === "RUNNING" ? "running" : activeEx.status === "COMPLETED" ? "completed" : activeEx.status === "CANCELLED" ? "neutral" : "failed"}`}>
+                      {activeEx.status === "RUNNING" && <span className="orch-pulse-dot" />}
+                      {activeEx.status}
                     </span>
                   </span>
                 </div>
                 <div className="orch-meta-item">
                   <span className="orch-meta-label">Tổng Steps DAG</span>
-                  <span className="orch-meta-val">{selectedEx.tasks?.length || 0} tác vụ</span>
+                  <span className="orch-meta-val">{activeEx.tasks?.length || 0} tác vụ</span>
                 </div>
                 <div className="orch-meta-item">
                   <span className="orch-meta-label">ID Tiến trình</span>
-                  <span className="orch-meta-val"><code>instance-{selectedEx.id}</code></span>
+                  <span className="orch-meta-val"><code>instance-{activeEx.id}</code></span>
                 </div>
               </div>
 
               {/* Step Timeline */}
               <h4 className="orch-section-heading">Tiến trình từng bước (Step-by-Step Task Lifecycle):</h4>
               <div className="orch-step-timeline">
-                {(selectedEx.tasks || []).map((t, idx) => {
+                {(activeEx.tasks || []).map((t, idx) => {
                   const isDone = t.status === "COMPLETED";
                   const isRun = t.status === "RUNNING";
                   const isFail = t.status === "FAILED";
+                  const isSkipped = t.status === "SKIPPED";
                   return (
-                    <div key={t.id || t.stepId} className={`orch-timeline-item ${isDone ? "done" : isRun ? "active" : isFail ? "failed" : "pending"}`}>
+                    <div key={t.id || t.stepId} className={`orch-timeline-item ${isDone ? "done" : isRun ? "active" : isFail ? "failed" : isSkipped ? "skipped" : "pending"}`}>
                       <div className="orch-timeline-node">
                         {isDone ? <I name="check" size={13} /> : isRun ? <span className="orch-pulse-dot" /> : isFail ? <I name="x" size={13} /> : <span>{idx + 1}</span>}
                       </div>
                       <div className="orch-timeline-body">
                         <div className="orch-timeline-header">
                           <strong className="orch-step-name">{t.stepName || t.stepId}</strong>
-                          <span className={`orch-badge-status ${isDone ? "completed" : isRun ? "running" : isFail ? "failed" : "neutral"}`}>
+                          <span className={`orch-badge-status ${isDone ? "completed" : isRun ? "running" : isFail ? "failed" : isSkipped ? "neutral" : "neutral"}`}>
+                            {isRun && <span className="orch-pulse-dot" />}
                             {t.status}
                           </span>
                         </div>
@@ -288,11 +414,17 @@ export default function ExecutionsPage() {
 
               {/* Payload Accordion */}
               <h4 className="orch-section-heading" style={{ marginTop: "24px" }}>Input Payload:</h4>
-              <pre className="orch-code-block">{selectedEx.inputPayloadJson || "{}"}</pre>
+              <pre className="orch-code-block">{activeEx.inputPayloadJson || "{}"}</pre>
             </div>
 
             <div className="orch-modal-actions">
-              <button className="orch-btn orch-btn-secondary" onClick={() => setSelectedEx(null)}>Đóng</button>
+              <button
+                type="button"
+                className="orch-btn orch-btn-secondary"
+                onClick={handleCloseModal}
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>

@@ -18,6 +18,12 @@ echo "  Distributed Workflow Orchestration Platform (DWOP)"
 echo "=========================================================="
 
 case "$1" in
+  worker|agent)
+    echo ">> Khởi động Distributed Worker Cluster Daemon..."
+    cd "$DIR/src/backend"
+    shift
+    python3 -m app.worker_agent "$@"
+    ;;
   backend|api)
     echo ">> Khởi động FastAPI Backend tại http://127.0.0.1:${BACKEND_PORT} ..."
     cd "$DIR/src/backend"
@@ -35,7 +41,7 @@ case "$1" in
     ;;
 
   test)
-    echo ">> Chạy toàn bộ 16 bài Pytest của Orchestrator & AI Engine ..."
+    echo ">> Chạy toàn bộ 31 bài Pytest của Orchestrator & AI Engine ..."
     cd "$DIR/src/backend"
     python3 -m pytest -v
     ;;
@@ -57,7 +63,10 @@ case "$1" in
     echo "3. Chạy kiểm thử tự động:"
     echo "   ./run.sh test"
     echo ""
-    echo "4. Khởi tạo lại CSDL mẫu:"
+    echo "4. Khởi động Worker kéo việc (Terminal 3):"
+    echo "   ./run.sh worker"
+    echo ""
+    echo "5. Khởi tạo lại CSDL mẫu:"
     echo "   ./run.sh db"
     ;;
 esac

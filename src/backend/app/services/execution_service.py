@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from typing import Optional
 from app.core.exceptions import AppException
@@ -48,10 +49,12 @@ class ExecutionService:
         )
         created_instance = store.add_instance(instance)
 
-        # Discover root steps (0 dependencies)
+        # Initialize all steps from DAG definition
         ready_steps = DagEngine.get_ready_steps(wf.dag, set(), set())
+        ready_step_ids = {s.id for s in ready_steps}
         created_tasks = []
-        for step in ready_steps:
+        for step in wf.dag.steps:
+            is_ready = step.id in ready_step_ids
             task = TaskExecution(
                 id=0,
                 instanceId=created_instance.id,
@@ -59,18 +62,22 @@ class ExecutionService:
                 stepName=step.name,
                 taskType=step.type,
                 queueName=step.queue or "default",
-                status=StepStatus.SCHEDULED,
+                status=StepStatus.SCHEDULED if is_ready else StepStatus.PENDING,
                 retryCount=0,
                 maxRetries=step.maxRetries,
-                inputPayloadJson=payload,
+                timeoutSeconds=step.timeoutSeconds or 300,
+                inputPayloadJson=payload if is_ready else "{}",
                 outputPayloadJson=None,
                 errorMessage=None,
                 assignedWorkerId=None,
-                scheduledAt=now,
+                scheduledAt=now if is_ready else None,
+                claimedAt=None,
                 startedAt=None,
                 completedAt=None,
                 createdAt=now,
                 updatedAt=now,
+                attempt=1,
+                condition=getattr(step, "condition", None),
             )
             created_tasks.append(store.add_task(task))
 
@@ -159,50 +166,136 @@ class ExecutionService:
             "updatedAt": now,
         })
         store.update_task(updated_task)
+        store.release_worker_slot(task.assignedWorkerId, completed=True)
 
-        # Advance DAG State Machine
+        # Advance DAG State Machine with Conditional Branching, Join Resolution & Cascade Skipping
+        released_step_names = []
         instance = store.get_instance(task.instanceId)
         if instance and instance.status == WorkflowStatus.RUNNING:
             wf = store.get_workflow(instance.workflowId)
             if wf:
+                # 1. Build aggregated execution context across root input + all finished tasks
+                context = {}
+                try:
+                    if instance.inputPayloadJson:
+                        root_in = json.loads(instance.inputPayloadJson)
+                        if isinstance(root_in, dict):
+                            context.update(root_in)
+                except Exception:
+                    pass
+
                 all_tasks = store.get_tasks_for_instance(instance.id)
-                completed_step_ids = {t.stepId for t in all_tasks if t.status == StepStatus.COMPLETED}
-                executed_step_ids = {t.stepId for t in all_tasks}
+                for t in all_tasks:
+                    if t.outputPayloadJson:
+                        try:
+                            t_out = json.loads(t.outputPayloadJson)
+                            if isinstance(t_out, dict):
+                                context.update(t_out)
+                                context[t.stepId] = t_out
+                        except Exception:
+                            pass
 
-                next_steps = DagEngine.get_ready_steps(wf.dag, completed_step_ids, executed_step_ids)
-                for step in next_steps:
-                    new_task = TaskExecution(
-                        id=0,
-                        instanceId=instance.id,
-                        stepId=step.id,
-                        stepName=step.name,
-                        taskType=step.type,
-                        queueName=step.queue or "default",
-                        status=StepStatus.SCHEDULED,
-                        retryCount=0,
-                        maxRetries=step.maxRetries,
-                        inputPayloadJson=req.outputPayloadJson or instance.inputPayloadJson,
-                        outputPayloadJson=None,
-                        errorMessage=None,
-                        assignedWorkerId=None,
-                        scheduledAt=now,
-                        startedAt=None,
-                        completedAt=None,
-                        createdAt=now,
-                        updatedAt=now,
+                # 2. Iterative cascade loop: advance all ready downstream steps (handling parallel joins and condition skips)
+                while True:
+                    all_tasks = store.get_tasks_for_instance(instance.id)
+                    satisfied_step_ids = {t.stepId for t in all_tasks if t.status in (StepStatus.COMPLETED, StepStatus.SKIPPED)}
+                    executed_or_scheduled_ids = {t.stepId for t in all_tasks if t.status in (StepStatus.SCHEDULED, StepStatus.RUNNING, StepStatus.COMPLETED, StepStatus.SKIPPED)}
+
+                    next_steps = DagEngine.get_ready_steps(wf.dag, satisfied_step_ids, executed_or_scheduled_ids)
+                    if not next_steps:
+                        break
+
+                    advanced = False
+                    for step in next_steps:
+                        t = next((tk for tk in all_tasks if tk.stepId == step.id and tk.status == StepStatus.PENDING), None)
+                        if not t:
+                            continue
+
+                        # Extract condition from step.condition or step.configurationJson
+                        step_cond = getattr(step, "condition", None)
+                        if not step_cond and step.configurationJson:
+                            try:
+                                cfg = json.loads(step.configurationJson)
+                                step_cond = cfg.get("condition")
+                            except Exception:
+                                pass
+
+                        # Merge input payload from instance input + all upstream dependencies
+                        merged_input = dict(context)
+                        for dep_id in step.dependsOn:
+                            dep_task = next((dt for dt in all_tasks if dt.stepId == dep_id), None)
+                            if dep_task and dep_task.outputPayloadJson:
+                                try:
+                                    dep_out = json.loads(dep_task.outputPayloadJson)
+                                    if isinstance(dep_out, dict):
+                                        merged_input.update(dep_out)
+                                        merged_input[dep_id] = dep_out
+                                except Exception:
+                                    pass
+
+                        # Evaluate condition
+                        is_active = DagEngine.evaluate_condition(step_cond, context)
+                        if is_active:
+                            updated_next_task = t.model_copy(update={
+                                "status": StepStatus.SCHEDULED,
+                                "scheduledAt": now,
+                                "updatedAt": now,
+                                "inputPayloadJson": json.dumps(merged_input)
+                            })
+                            store.update_task(updated_next_task)
+                            released_step_names.append(t.stepName)
+                            advanced = True
+                        else:
+                            # Step is SKIPPED because condition evaluated to False
+                            skip_out = json.dumps({
+                                "status": "SKIPPED",
+                                "reason": f"Condition '{step_cond}' evaluated to False",
+                                "skippedAt": now.isoformat()
+                            })
+                            skipped_task = t.model_copy(update={
+                                "status": StepStatus.SKIPPED,
+                                "scheduledAt": now,
+                                "startedAt": now,
+                                "completedAt": now,
+                                "updatedAt": now,
+                                "outputPayloadJson": skip_out,
+                                "inputPayloadJson": json.dumps(merged_input)
+                            })
+                            store.update_task(skipped_task)
+                            context[step.id] = {"status": "SKIPPED"}
+                            context["slackAlertStatus"] = "SKIPPED"
+                            store.record_audit(
+                                "SKIP",
+                                "ORCHESTRATOR",
+                                f"Task '{t.stepName}' was SKIPPED (Condition '{step_cond}' not met).",
+                                user_id=None
+                            )
+                            released_step_names.append(f"{t.stepName} (SKIPPED)")
+                            advanced = True  # Continue loop so join steps depending on this can unlock!
+
+                    if not advanced:
+                        break
+
+                if released_step_names:
+                    store.record_audit(
+                        "DISPATCH",
+                        "ORCHESTRATOR",
+                        f"Task '{task.stepName}' completed. Resolved downstream steps: {', '.join(released_step_names)}",
+                        user_id=None
                     )
-                    store.add_task(new_task)
 
-                # Check if all steps in DAG completed
-                if all(step.id in completed_step_ids for step in wf.dag.steps):
+                # 3. Check if all steps in DAG reached terminal state (COMPLETED or SKIPPED)
+                all_tasks = store.get_tasks_for_instance(instance.id)
+                terminal_count = sum(1 for t in all_tasks if t.status in (StepStatus.COMPLETED, StepStatus.SKIPPED))
+                if terminal_count == len(wf.dag.steps):
                     store.update_instance(instance.model_copy(update={
                         "status": WorkflowStatus.COMPLETED,
-                        "outputPayloadJson": req.outputPayloadJson,
+                        "outputPayloadJson": json.dumps(context),
                         "completedAt": now,
                         "updatedAt": now,
                     }))
 
-        return updated_task
+        return updated_task.model_copy(update={"releasedSteps": released_step_names})
 
     @staticmethod
     def fail_task(task_id: int, req: FailTaskRequest) -> TaskExecution:
@@ -211,6 +304,8 @@ class ExecutionService:
             raise AppException.not_found(f"Task execution #{task_id}")
 
         now = datetime.now(timezone.utc)
+        store.release_worker_slot(task.assignedWorkerId, completed=False)
+
         if req.canRetry and task.retryCount < task.maxRetries:
             retried = task.model_copy(update={
                 "status": StepStatus.SCHEDULED,
@@ -219,6 +314,7 @@ class ExecutionService:
                 "assignedWorkerId": None,
                 "scheduledAt": now,
                 "updatedAt": now,
+                "attempt": task.retryCount + 2,
             })
             store.update_task(retried)
             return retried

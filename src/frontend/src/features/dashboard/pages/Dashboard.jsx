@@ -15,14 +15,15 @@ export function Kpi({ label, value, delta, up }) {
 }
 
 export default function Dashboard() {
-  const { metrics, executions, workflows, workers, loadMetrics, loadExecutions, triggerWorkflow, toast } = useFinance();
+  const { metrics, executions, workflows, workers, loadWorkflows, loadMetrics, loadExecutions, triggerWorkflow, toast } = useFinance();
   const nav = useNavigate();
   const [triggeringId, setTriggeringId] = useState(null);
 
   useEffect(() => {
+    loadWorkflows();
     loadMetrics();
     loadExecutions();
-  }, [loadMetrics, loadExecutions]);
+  }, [loadWorkflows, loadMetrics, loadExecutions]);
 
   const totalRuns = metrics.completedInstances + metrics.failedInstances + metrics.runningInstances;
   const successRate = (metrics.completedInstances + metrics.failedInstances) > 0
@@ -125,7 +126,15 @@ export default function Dashboard() {
           </div>
 
           <div className="orch-wf-list">
-            {workflows.map((wf) => {
+            {workflows.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--orch-text-muted)" }}>
+                <p style={{ margin: "0 0 12px", fontSize: "14px" }}>Chưa có workflow nào trong hệ thống.</p>
+                <button className="orch-btn orch-btn-primary orch-btn-sm" onClick={() => nav("/workflows")}>
+                  <I name="plus" size={14} /> Tạo Workflow ngay
+                </button>
+              </div>
+            ) : (
+              workflows.map((wf) => {
               const queues = Array.from(new Set(wf.dag?.steps?.map((s) => s.queue || "default")));
               return (
                 <div key={wf.id} className="orch-wf-item">
@@ -159,7 +168,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
 
@@ -248,7 +257,14 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {executions.slice(0, 6).map((ex) => {
+              {executions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "32px 16px", color: "var(--orch-text-muted)", fontSize: "13px" }}>
+                    Chưa có lượt chạy nào trong hệ thống.
+                  </td>
+                </tr>
+              ) : (
+                executions.slice(0, 6).map((ex) => {
                 const totalSteps = ex.tasks?.length || 0;
                 const completedSteps = ex.tasks?.filter((t) => t.status === "COMPLETED").length || 0;
                 const pct = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
@@ -297,7 +313,7 @@ export default function Dashboard() {
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>

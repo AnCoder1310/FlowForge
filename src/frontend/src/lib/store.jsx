@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SAMPLE_WORKFLOWS, SAMPLE_WORKERS, SAMPLE_EXECUTIONS, AUDIT_LOGS, USERS } from "./data";
 import { can as canPerm, clearSession, readSession, saveSession } from "./auth";
 import { api, setAccessToken } from "./api";
@@ -19,13 +19,13 @@ export function FinanceProvider({ children }) {
   const [audits, setAudits] = useState(AUDIT_LOGS);
   const [users, setUsers] = useState(USERS);
   const [metrics, setMetrics] = useState({
-    totalWorkflows: 2,
-    activeWorkflows: 2,
-    runningInstances: 1,
-    completedInstances: 1,
+    totalWorkflows: 0,
+    activeWorkflows: 0,
+    runningInstances: 0,
+    completedInstances: 0,
     failedInstances: 0,
-    pendingTasks: 2,
-    activeWorkers: 3
+    pendingTasks: 0,
+    activeWorkers: 0
   });
 
   const [toasts, setToasts] = useState([]);
@@ -114,29 +114,84 @@ export function FinanceProvider({ children }) {
     }
   }, []);
 
+  const workflowsRef = useRef(workflows);
+  const executionsRef = useRef(executions);
+  const workersRef = useRef(workers);
+
+  useEffect(() => {
+    workflowsRef.current = workflows;
+  }, [workflows]);
+
+  useEffect(() => {
+    executionsRef.current = executions;
+  }, [executions]);
+
+  useEffect(() => {
+    workersRef.current = workers;
+  }, [workers]);
+
   const loadMetrics = useCallback(async () => {
     try {
       const res = await api.get("/metrics/dashboard");
-      if (res) setMetrics(res);
+      if (res) {
+        setMetrics((prev) => {
+          if (
+            prev.totalWorkflows === res.totalWorkflows &&
+            prev.activeWorkflows === res.activeWorkflows &&
+            prev.runningInstances === res.runningInstances &&
+            prev.completedInstances === res.completedInstances &&
+            prev.failedInstances === res.failedInstances &&
+            prev.pendingTasks === res.pendingTasks &&
+            prev.activeWorkers === res.activeWorkers
+          ) {
+            return prev;
+          }
+          return res;
+        });
+      }
     } catch {
-      // calculate from state
-      setMetrics({
-        totalWorkflows: workflows.length,
-        activeWorkflows: workflows.filter((w) => w.isActive).length,
-        runningInstances: executions.filter((e) => e.status === "RUNNING").length,
-        completedInstances: executions.filter((e) => e.status === "COMPLETED").length,
-        failedInstances: executions.filter((e) => e.status === "FAILED").length,
-        pendingTasks: executions.flatMap((e) => e.tasks || []).filter((t) => t.status === "PENDING" || t.status === "SCHEDULED").length,
-        activeWorkers: workers.filter((w) => w.status === "ONLINE").length,
+      const wfs = workflowsRef.current;
+      const exs = executionsRef.current;
+      const wks = workersRef.current;
+      const computed = {
+        totalWorkflows: wfs.length,
+        activeWorkflows: wfs.filter((w) => w.isActive).length,
+        runningInstances: exs.filter((e) => e.status === "RUNNING").length,
+        completedInstances: exs.filter((e) => e.status === "COMPLETED").length,
+        failedInstances: exs.filter((e) => e.status === "FAILED").length,
+        pendingTasks: exs.flatMap((e) => e.tasks || []).filter((t) => t.status === "PENDING" || t.status === "SCHEDULED").length,
+        activeWorkers: wks.filter((w) => w.status === "ONLINE").length,
+      };
+      setMetrics((prev) => {
+        if (
+          prev.totalWorkflows === computed.totalWorkflows &&
+          prev.activeWorkflows === computed.activeWorkflows &&
+          prev.runningInstances === computed.runningInstances &&
+          prev.completedInstances === computed.completedInstances &&
+          prev.failedInstances === computed.failedInstances &&
+          prev.pendingTasks === computed.pendingTasks &&
+          prev.activeWorkers === computed.activeWorkers
+        ) {
+          return prev;
+        }
+        return computed;
       });
     }
-  }, [workflows, executions, workers]);
+  }, []);
+
+  useEffect(() => {
+    loadWorkflows();
+    loadExecutions();
+    loadWorkers();
+    loadMetrics();
+  }, [loadWorkflows, loadExecutions, loadWorkers, loadMetrics]);
 
   const triggerWorkflow = useCallback(async (workflowId, inputJson = "{}") => {
     try {
       const res = await api.post(`/executions/workflows/${workflowId}/trigger`, { inputPayloadJson: inputJson });
       setExecutions((prev) => [res, ...prev]);
       toast(`Đã kích hoạt workflow #${res.id}!`, "success");
+      loadMetrics();
       return res;
     } catch {
       // Mock trigger
@@ -166,7 +221,7 @@ export function FinanceProvider({ children }) {
       toast(`Đã kích hoạt execution #${newInst.id} (demo)!`, "success");
       return newInst;
     }
-  }, [workflows, workers, toast]);
+  }, [workflows, workers, toast, loadMetrics]);
 
   const cancelExecution = useCallback(async (id) => {
     try {
@@ -178,13 +233,15 @@ export function FinanceProvider({ children }) {
       prev.map((e) => (e.id === id ? { ...e, status: "CANCELLED", completedAt: new Date().toISOString() } : e))
     );
     toast(`Đã hủy lượt chạy #${id}`);
-  }, [toast]);
+    loadMetrics();
+  }, [toast, loadMetrics]);
 
   const createWorkflow = useCallback(async (data) => {
     try {
       const res = await api.post("/workflows", data);
       setWorkflows((prev) => [res, ...prev]);
       toast("Tạo mới workflow thành công!", "success");
+      loadMetrics();
       return res;
     } catch {
       const newWf = {
@@ -201,7 +258,31 @@ export function FinanceProvider({ children }) {
       toast("Đã tạo workflow (demo)!", "success");
       return newWf;
     }
-  }, [current, toast]);
+  }, [current, toast, loadMetrics]);
+
+  const updateWorkflow = useCallback(async (workflowId, data) => {
+    try {
+      const res = await api.put(`/workflows/${workflowId}`, data);
+      setWorkflows((prev) => prev.map((w) => (w.id === workflowId ? res : w)));
+      toast(`Cập nhật workflow #${workflowId} thành công!`, "success");
+      loadMetrics();
+      return res;
+    } catch (err) {
+      toast(err.message || "Lỗi cập nhật workflow", "danger");
+      throw err;
+    }
+  }, [toast, loadMetrics]);
+
+  const deleteWorkflow = useCallback(async (workflowId) => {
+    try {
+      await api.delete(`/workflows/${workflowId}`);
+      setWorkflows((prev) => prev.filter((w) => w.id !== workflowId));
+      toast(`Đã xóa workflow #${workflowId} thành công!`, "info");
+      loadMetrics();
+    } catch (err) {
+      toast(err.message || "Lỗi xóa workflow", "danger");
+    }
+  }, [toast, loadMetrics]);
 
   const value = useMemo(
     () => ({
@@ -226,6 +307,8 @@ export function FinanceProvider({ children }) {
       triggerWorkflow,
       cancelExecution,
       createWorkflow,
+      updateWorkflow,
+      deleteWorkflow,
     }),
     [
       current,
@@ -248,6 +331,8 @@ export function FinanceProvider({ children }) {
       triggerWorkflow,
       cancelExecution,
       createWorkflow,
+      updateWorkflow,
+      deleteWorkflow,
     ]
   );
 

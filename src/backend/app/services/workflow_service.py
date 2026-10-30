@@ -70,6 +70,7 @@ class WorkflowService:
 
         now = datetime.now(timezone.utc)
         updated = wf.model_copy(update={
+            "name": req.name.strip() if req.name is not None and req.name.strip() else wf.name,
             "description": req.description.strip() if req.description is not None else wf.description,
             "dag": updated_dag,
             "isActive": req.isActive if req.isActive is not None else wf.isActive,

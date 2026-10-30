@@ -1,20 +1,36 @@
+import { useEffect } from "react";
 import { useFinance } from "../../../lib/store";
 import { I } from "../../../lib/icons";
 
 export default function WorkersPage() {
-  const { workers, metrics } = useFinance();
+  const { workers, metrics, loadWorkers } = useFinance();
+
+  useEffect(() => {
+    if (loadWorkers) loadWorkers();
+  }, [loadWorkers]);
 
   const totalSlots = workers.reduce((acc, w) => acc + (w.maxConcurrency || 4), 0);
   const usedSlots = workers.reduce((acc, w) => acc + (w.currentLoad || 0), 0);
   const utilization = totalSlots > 0 ? Math.round((usedSlots / totalSlots) * 100) : 0;
 
-  const queueOverview = [
-    { name: "default", type: "Standard IO / Dispatch", workersCount: 3, pending: 0, status: "ACTIVE" },
-    { name: "compute", type: "High-CPU Number Crunching", workersCount: 2, pending: 1, status: "ACTIVE" },
-    { name: "data-io", type: "Database & S3 ETL Operations", workersCount: 1, pending: 0, status: "ACTIVE" },
-    { name: "payment", type: "PCI-DSS Payment Gateway", workersCount: 1, pending: 0, status: "ACTIVE" },
-    { name: "ai-agent", type: "LLM Inference & Self-Healing", workersCount: 2, pending: 0, status: "ACTIVE" },
+  const queueMeta = [
+    { name: "default", type: "Standard IO / Webhook Dispatch" },
+    { name: "compute", type: "High-CPU Distributed Processing" },
+    { name: "ai-agent", type: "LLM Reasoning & Anomaly Detection" },
+    { name: "data-io", type: "Analytical Warehouse & Parquet ETL" },
+    { name: "payment", type: "PCI-DSS Payment Gateway & Saga" },
   ];
+
+  const queueOverview = queueMeta.map((q) => {
+    const matchingWorkers = workers.filter((w) => (w.supportedQueues || []).includes(q.name));
+    return {
+      name: q.name,
+      type: q.type,
+      workersCount: matchingWorkers.length,
+      pending: metrics?.pendingTasks || 0,
+      status: matchingWorkers.length > 0 ? "ACTIVE" : "STANDBY",
+    };
+  });
 
   return (
     <div className="orch-page-wrap">
@@ -33,8 +49,19 @@ export default function WorkersPage() {
       </div>
 
       {/* Worker Nodes Grid */}
-      <div className="orch-card-grid-3">
-        {workers.map((w) => {
+      {workers.length === 0 ? (
+        <div className="orch-card" style={{ textAlign: "center", padding: "40px 16px", color: "var(--orch-text-muted)" }}>
+          <div style={{ display: "inline-flex", padding: "14px", borderRadius: "50%", background: "var(--orch-border-subtle)", marginBottom: "12px" }}>
+            <I name="server" size={28} />
+          </div>
+          <h4 style={{ margin: "0 0 6px", fontSize: "16px", fontWeight: "600" }}>Chưa có Worker Node nào trực tuyến</h4>
+          <p style={{ margin: 0, fontSize: "13px" }}>
+            Khởi động Worker daemon lắng nghe 5 task queues bằng lệnh: <code className="orch-code-inline">./run.sh worker</code>
+          </p>
+        </div>
+      ) : (
+        <div className="orch-card-grid-3">
+          {workers.map((w) => {
           const loadPct = w.maxConcurrency > 0 ? Math.round(((w.currentLoad || 0) / w.maxConcurrency) * 100) : 0;
           const isOnline = w.status === "ONLINE";
 
@@ -73,12 +100,12 @@ export default function WorkersPage() {
               {/* Heartbeat & System Telemetry */}
               <div className="orch-worker-meta-grid">
                 <div className="orch-worker-meta-item">
-                  <span className="orch-meta-label">Heartbeat gần nhất:</span>
-                  <span className="orch-meta-val orch-text-emerald">Vừa gửi (1s trước)</span>
+                  <span className="orch-meta-label">Tác vụ đã xử lý:</span>
+                  <strong className="orch-meta-val orch-text-emerald">{w.completedTasks || 0} tasks</strong>
                 </div>
                 <div className="orch-worker-meta-item">
-                  <span className="orch-meta-label">Phiên bản Agent:</span>
-                  <span className="orch-meta-val">DWOP Worker v2.4</span>
+                  <span className="orch-meta-label">Heartbeat:</span>
+                  <span className="orch-meta-val">{isOnline ? "Vừa gửi (1s trước)" : "Mất kết nối"}</span>
                 </div>
               </div>
 
@@ -97,6 +124,7 @@ export default function WorkersPage() {
           );
         })}
       </div>
+      )}
 
       {/* Task Queue Breakdown Table */}
       <div className="orch-card" style={{ marginTop: "24px" }}>
@@ -147,6 +175,72 @@ export default function WorkersPage() {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Task Distribution by Worker Table */}
+      <div className="orch-card" style={{ marginTop: "24px" }}>
+        <div className="orch-card-head">
+          <div>
+            <h2 className="orch-card-title">Phân Bổ Tác Vụ Theo Từng Worker Node (Worker Distribution Telemetry)</h2>
+            <p className="orch-card-sub">Thống kê chi tiết tải trọng, tác vụ đã hoàn thành và trạng thái thực thi của từng Worker</p>
+          </div>
+          <span className="orch-tag purple">{workers.length} Nodes Trực Tuyến</span>
+        </div>
+
+        <div className="orch-table-container">
+          <table className="orch-table">
+            <thead>
+              <tr>
+                <th>Worker ID</th>
+                <th>Máy Chủ (Hostname)</th>
+                <th>Hàng Đợi Đảm Nhận</th>
+                <th>Tải Hiện Tại (Slots)</th>
+                <th>Tác Vụ Hoàn Thành</th>
+                <th>Tỷ Lệ Tải</th>
+                <th style={{ textAlign: "right" }}>Trạng Thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workers.map((w) => {
+                const loadPct = w.maxConcurrency > 0 ? Math.round(((w.currentLoad || 0) / w.maxConcurrency) * 100) : 0;
+                return (
+                  <tr key={w.workerId} className="orch-table-row">
+                    <td>
+                      <code className="orch-code-pill highlight">{w.workerId}</code>
+                    </td>
+                    <td>
+                      <span className="orch-cell-wfname">{w.hostname}</span>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                        {(w.supportedQueues || []).map((q) => (
+                          <span key={q} className="orch-tag neutral" style={{ fontSize: "0.65rem", padding: "1px 6px" }}>{q}</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      <strong>{w.currentLoad || 0}</strong> / {w.maxConcurrency} slots
+                    </td>
+                    <td>
+                      <span className="orch-tag emerald" style={{ fontWeight: 600 }}>{w.completedTasks || 0} tasks</span>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: loadPct > 80 ? "var(--rose)" : loadPct > 50 ? "var(--amber)" : "var(--emerald)" }}>
+                        {loadPct}%
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span className={`orch-badge-status ${w.status === "ONLINE" ? "completed" : w.status === "BUSY" ? "running" : "failed"}`}>
+                        {w.status === "ONLINE" && <span className="orch-pulse-dot" />}
+                        {w.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

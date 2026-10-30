@@ -187,6 +187,8 @@ a {
   animation: orchPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   margin-right: 6px;
   vertical-align: middle;
+  flex-shrink: 0;
+  will-change: transform, opacity;
 }
 
 /* ==========================================================================
@@ -935,6 +937,8 @@ a {
   position: relative;
   overflow: hidden;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  min-height: 148px;
+  contain: layout;
 }
 
 .orch-kpi-stat:hover {
@@ -989,6 +993,12 @@ a {
   margin: 12px 0 8px;
   color: var(--text-primary);
   font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  line-height: 1.1;
+  min-height: 2.4rem;
+  display: flex;
+  align-items: center;
 }
 
 .orch-kpi-footer {
@@ -997,6 +1007,7 @@ a {
   gap: 8px;
   margin-top: auto;
   font-size: 0.76rem;
+  min-height: 24px;
 }
 
 .orch-badge-sub {
@@ -1006,6 +1017,8 @@ a {
   padding: 2px 7px;
   border-radius: 999px;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .orch-badge-sub.positive { background-color: var(--emerald-light); color: var(--emerald-text); }
@@ -2501,4 +2514,1343 @@ a {
   background-color: var(--bg-surface-hover);
   color: var(--text-secondary);
   text-align: left;
+}
+
+
+/* --- Enhanced DAG Stage & Parallel Branching Visualizer --- */
+.orch-dag-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.orch-dag-stage-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.orch-dag-stage-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.orch-dag-stage-column.parallel-stage {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px dashed rgba(139, 92, 246, 0.45);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
+}
+
+.orch-dag-parallel-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #8b5cf6;
+  margin-bottom: 3px;
+}
+
+.orch-dag-stage-nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.orch-dag-node-box.parallel-node {
+  border-left: 3px solid #8b5cf6;
+}
+
+.orch-dag-node-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.orch-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   Visual Workflow Studio (3-Zone n8n / Airflow Style Builder)
+   ========================================================================== */
+
+.orch-studio-root {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--topbar-height, 68px));
+  width: 100%;
+  background: var(--bg-app);
+  overflow: hidden;
+  user-select: none;
+  position: relative;
+}
+
+.orch-studio-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  z-index: 20;
+  height: 56px;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.orch-studio-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.orch-studio-title-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.orch-studio-name-input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  transition: all 0.2s;
+  min-width: 220px;
+}
+
+.orch-studio-name-input:hover,
+.orch-studio-name-input:focus {
+  border-color: var(--border-focus);
+  background: var(--bg-subtle);
+  outline: none;
+}
+
+.orch-studio-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.orch-studio-workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* --- Left Sidebar: Node Library --- */
+.orch-studio-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.orch-studio-sidebar-head {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.orch-studio-sidebar-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.orch-studio-sidebar-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 2px 0 10px;
+}
+
+.orch-studio-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  color: var(--text-muted);
+}
+
+.orch-studio-search-input {
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  outline: none;
+  width: 100%;
+}
+
+.orch-studio-node-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.orch-studio-node-pill {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.orch-studio-node-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--primary);
+}
+
+.orch-studio-node-pill.pill-amber {
+  border-left: 4px solid var(--amber);
+}
+
+.orch-studio-node-pill.pill-blue {
+  border-left: 4px solid var(--blue);
+}
+
+.orch-studio-node-pill.pill-purple {
+  border-left: 4px solid var(--purple);
+}
+
+.orch-studio-node-pill.pill-emerald {
+  border-left: 4px solid var(--emerald);
+}
+
+.orch-studio-node-pill-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.orch-studio-pill-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orch-studio-pill-icon.amber {
+  background: var(--amber-light);
+  color: var(--amber-text);
+}
+
+.orch-studio-pill-icon.blue {
+  background: var(--blue-light);
+  color: var(--blue-text);
+}
+
+.orch-studio-pill-icon.purple {
+  background: var(--purple-light);
+  color: var(--purple-text);
+}
+
+.orch-studio-pill-icon.emerald {
+  background: var(--emerald-light);
+  color: var(--emerald-text);
+}
+
+.orch-studio-pill-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.orch-studio-pill-desc {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+  margin: 0 0 6px 0;
+}
+
+.orch-studio-pill-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.orch-studio-pill-meta code {
+  font-family: var(--font-mono);
+  background: var(--bg-subtle);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.orch-studio-sidebar-footer {
+  padding: 10px 12px;
+  background: var(--bg-subtle);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.orch-studio-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+/* --- Center: Interactive Canvas --- */
+.orch-studio-canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-app);
+  cursor: grab;
+  user-select: none;
+}
+
+.orch-studio-canvas-area:active {
+  cursor: grabbing;
+}
+
+.orch-studio-canvas-controls {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  padding: 5px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.orch-studio-zoom-val {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 42px;
+  text-align: center;
+}
+
+.orch-studio-svg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 2;
+}
+
+.orch-studio-edge-group {
+  pointer-events: auto;
+}
+
+.orch-studio-edge-path {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2.2px;
+  transition: stroke 0.15s;
+}
+
+.orch-studio-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14px;
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
+.orch-studio-edge-hit:hover + .orch-studio-edge-path,
+.orch-studio-edge-group:hover .orch-studio-edge-path {
+  stroke: var(--rose);
+  stroke-width: 3px;
+}
+
+.orch-studio-nodes-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.orch-studio-node-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+  padding: 9px 11px;
+  cursor: move;
+  pointer-events: auto;
+  transition: box-shadow 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.orch-studio-node-card.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25), 0 6px 18px rgba(0, 0, 0, 0.1);
+}
+
+.orch-studio-node-card.connecting-source {
+  border-color: var(--emerald);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35);
+}
+
+.orch-studio-node-card.card-amber {
+  border-left: 4px solid var(--amber);
+}
+
+.orch-studio-node-card.card-blue {
+  border-left: 4px solid var(--blue);
+}
+
+.orch-studio-node-card.card-purple {
+  border-left: 4px solid var(--purple);
+}
+
+.orch-studio-node-card.card-emerald {
+  border-left: 4px solid var(--emerald);
+}
+
+.orch-studio-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  top: calc(50% - 7px);
+  cursor: crosshair;
+  transition: transform 0.15s, background-color 0.15s;
+  z-index: 10;
+}
+
+.orch-studio-handle.handle-in {
+  left: -8px;
+  border: 2.5px solid var(--blue);
+}
+
+.orch-studio-handle.handle-out {
+  right: -8px;
+  border: 2.5px solid var(--emerald);
+}
+
+.orch-studio-handle:hover {
+  transform: scale(1.35);
+  background: var(--emerald);
+}
+
+.orch-studio-handle.active {
+  background: var(--emerald);
+  transform: scale(1.3);
+}
+
+.orch-studio-node-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.orch-studio-node-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.orch-studio-node-card-body {
+  margin-bottom: 6px;
+}
+
+.orch-studio-node-name {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.orch-studio-node-id {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 1px;
+}
+
+.orch-studio-node-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 5px;
+}
+
+.orch-queue-pill {
+  background: var(--bg-subtle);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+.orch-retry-pill {
+  color: var(--text-muted);
+}
+
+/* --- Right: Configuration Panel --- */
+.orch-studio-config-panel {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  z-index: 10;
+  padding: 16px;
+}
+
+.orch-studio-config-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.orch-studio-config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.orch-studio-config-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.orch-studio-config-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.orch-studio-config-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}
+
+.orch-studio-config-empty h4 {
+  margin: 12px 0 4px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.orch-studio-config-empty p {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.orch-deps-checkbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--bg-subtle);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.orch-dep-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.orch-dep-checkbox-item code {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Modern Workflow Definitions Hub (KPIs, Toolbar, Grid & Table Views)
+   ========================================================================== */
+
+/* Page Header & Actions */
+.orch-wf-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.orch-wf-page-title-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.orch-wf-title-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(124, 58, 237, 0.15) 100%);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(79, 70, 229, 0.25);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
+}
+
+.orch-wf-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+
+.orch-wf-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.orch-badge-counter {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.orch-wf-subtitle {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.orch-wf-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.orch-btn-studio {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.orch-btn-studio:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45);
+}
+
+/* KPI Summary Cards Grid */
+.orch-wf-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.orch-wf-stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.orch-wf-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.orch-wf-stat-card.border-indigo { border-left: 4px solid #6366f1; }
+.orch-wf-stat-card.border-emerald { border-left: 4px solid #10b981; }
+.orch-wf-stat-card.border-blue { border-left: 4px solid #3b82f6; }
+.orch-wf-stat-card.border-purple { border-left: 4px solid #8b5cf6; }
+
+.orch-wf-stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.orch-wf-stat-icon.indigo { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
+.orch-wf-stat-icon.emerald { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+.orch-wf-stat-icon.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.orch-wf-stat-icon.purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+
+.orch-wf-stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.orch-wf-stat-val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.orch-wf-stat-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+}
+
+/* Toolbar Card with Quick Tabs & Filters */
+.orch-wf-toolbar-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.orch-wf-quick-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 10px;
+}
+
+.orch-wf-quick-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.orch-wf-quick-tab:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.orch-wf-quick-tab.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: rgba(79, 70, 229, 0.25);
+  font-weight: 700;
+}
+
+.orch-quick-pill-num {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  font-weight: 700;
+}
+
+.dark .orch-quick-pill-num {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.orch-wf-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.orch-wf-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 280px;
+  flex-wrap: wrap;
+}
+
+.orch-wf-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+  color: var(--text-muted);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.orch-wf-search-box:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+}
+
+.orch-wf-search-input {
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  outline: none;
+  width: 100%;
+}
+
+.orch-wf-select-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.orch-select-icon {
+  display: flex;
+  align-items: center;
+}
+
+.orch-wf-select {
+  border: none;
+  background: transparent;
+  padding: 7px 4px;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+}
+
+.orch-wf-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.orch-wf-counter-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.orch-view-segmented {
+  display: flex;
+  align-items: center;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.orch-view-seg-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.orch-view-seg-btn.active {
+  background: var(--bg-surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+  font-weight: 700;
+}
+
+/* Empty State */
+.orch-empty-state-box {
+  background: var(--bg-surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.orch-empty-icon-ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.orch-empty-title {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.orch-empty-desc {
+  margin: 0 0 20px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  max-width: 480px;
+  margin-inline: auto;
+  line-height: 1.5;
+}
+
+/* Balanced Card Grid View (v3) */
+.orch-wf-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 18px;
+}
+
+.orch-wf-card-v3 {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  height: 100%;
+}
+
+.orch-wf-card-v3:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-hover);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+}
+
+/* Card Header */
+.orch-wf-card-header {
+  padding: 14px 16px 10px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.orch-wf-card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.orch-wf-icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.orch-wf-icon-badge.purple {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+.orch-wf-icon-badge.indigo {
+  background: rgba(79, 70, 229, 0.12);
+  color: #4f46e5;
+  border: 1px solid rgba(79, 70, 229, 0.25);
+}
+
+.orch-wf-icon-badge.amber {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.orch-wf-title-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.orch-wf-card-name {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 3px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.orch-wf-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.orch-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.orch-status-pill.active {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.orch-version-pill {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.orch-wf-header-micro-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.orch-icon-btn.danger:hover {
+  color: var(--rose) !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Card Description */
+.orch-wf-card-desc {
+  padding: 0 16px 10px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.3em;
+}
+
+/* Pipeline Visual Panel */
+.orch-wf-pipeline-panel {
+  padding: 12px 16px;
+  background: var(--bg-subtle);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.orch-wf-metric-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.orch-wf-metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.orch-wf-metric-pill.purple {
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.3);
+  color: #7c3aed;
+}
+
+.orch-wf-metric-pill.violet {
+  background: rgba(124, 58, 237, 0.08);
+  border-color: rgba(124, 58, 237, 0.3);
+  color: #6d28d9;
+}
+
+/* Stage Node Sequence Preview */
+.orch-wf-pipeline-preview {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 6px 4px;
+}
+
+.orch-wf-stage-node-item {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.orch-wf-stage-node {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s;
+  cursor: default;
+  flex-shrink: 0;
+}
+
+.orch-wf-stage-node.parallel {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.08);
+  color: #7c3aed;
+  font-weight: 700;
+}
+
+.orch-wf-stage-num {
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+.orch-wf-stage-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  min-width: 12px;
+}
+
+.orch-wf-stage-more {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
+  flex-shrink: 0;
+}
+
+/* Task Types Distribution Bar */
+.orch-wf-types-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.orch-wf-type-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.orch-type-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.orch-type-dot.http_task { background: #3b82f6; }
+.orch-type-dot.worker_task { background: #6366f1; }
+.orch-type-dot.ai_agent_task { background: #8b5cf6; }
+.orch-type-dot.notification { background: #f59e0b; }
+
+/* Card Footer */
+.orch-wf-card-footer {
+  padding: 10px 16px;
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.orch-wf-queues-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  max-width: 58%;
+}
+
+.orch-wf-queues-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.orch-queue-code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.orch-queue-more {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.orch-wf-main-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Spin Animation for Reload & Sync Icons */
+.orch-spin {
+  animation: orchSpin 0.8s linear infinite;
+}
+@keyframes orchSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Highlighted Table Row for Newly Triggered Executions */
+.orch-table-row.highlighted {
+  background-color: rgba(79, 70, 229, 0.08) !important;
+  border-left: 3px solid #6366f1;
 }

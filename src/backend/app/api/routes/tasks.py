@@ -16,3 +16,7 @@ def complete_task(task_id: int, req: CompleteTaskRequest):
 @router.post("/{task_id}/fail", response_model=TaskExecution)
 def fail_task(task_id: int, req: FailTaskRequest):
     return ExecutionService.fail_task(task_id, req)
+
+@router.post("/reclaim-stale")
+def reclaim_stale_tasks():
+    return WorkerService.reclaim_stale_tasks()

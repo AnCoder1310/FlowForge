@@ -38,6 +38,7 @@ class WorkerService:
     @staticmethod
     def poll_task(req: PollTaskRequest) -> PollTaskResponse:
         store.record_heartbeat(req.workerId)
+        store.reclaim_stale_tasks(heartbeat_timeout_seconds=45)
         task = store.poll_scheduled_task(req.workerId, req.queues or ["default"])
         if not task:
             return PollTaskResponse(task=None, instanceId=0, workflowName="")
@@ -56,3 +57,7 @@ class WorkerService:
     @staticmethod
     def get_metrics() -> OrchestratorMetrics:
         return store.get_metrics()
+
+    @staticmethod
+    def reclaim_stale_tasks(heartbeat_timeout_seconds: int = 45) -> dict:
+        return store.reclaim_stale_tasks(heartbeat_timeout_seconds=heartbeat_timeout_seconds)

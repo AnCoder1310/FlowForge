@@ -6,6 +6,7 @@ import Login from "./features/auth/pages/Login";
 import Shell from "./components/Shell";
 import Dashboard from "./features/dashboard/pages/Dashboard";
 import WorkflowDefinitionsPage from "./features/workflows/pages/WorkflowDefinitionsPage";
+import WorkflowStudio from "./features/workflows/components/WorkflowStudio";
 import ExecutionsPage from "./features/executions/pages/ExecutionsPage";
 import WorkersPage from "./features/workers/pages/WorkersPage";
 import AuditPage from "./features/audit/pages/AuditPage";
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route element={<Guard perm={null}><Shell /></Guard>}>
           <Route path="/dashboard" element={<Guard perm={PAGE_PERM.dashboard}><Dashboard /></Guard>} />
           <Route path="/workflows" element={<Guard perm={PAGE_PERM.workflows}><WorkflowDefinitionsPage /></Guard>} />
+          <Route path="/workflows/studio" element={<Guard perm={PAGE_PERM.workflows}><WorkflowStudio /></Guard>} />
           <Route path="/executions" element={<Guard perm={PAGE_PERM.executions}><ExecutionsPage /></Guard>} />
           <Route path="/workers" element={<Guard perm={PAGE_PERM.workers}><WorkersPage /></Guard>} />
           <Route path="/audit" element={<Guard perm={PAGE_PERM.audit}><AuditPage /></Guard>} />

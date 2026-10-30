@@ -23,7 +23,7 @@ flowchart LR
 
 ## System Boundary
 
-Distributed Workflow Orchestration Platform (DWOP / NexusDAG) serves as the **Master Orchestration Brain** for engineering and DevOps teams.
+Distributed Workflow Orchestration Platform (FlowForge DWOP) serves as the **Master Orchestration Brain** for engineering and DevOps teams.
 
 It is strictly responsible for:
 1. **DAG Graph Validation:** Topological sorting and cycle detection using Kahn's Algorithm.

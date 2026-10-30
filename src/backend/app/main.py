@@ -35,6 +35,7 @@ async def app_exception_handler(request: Request, exc: AppException):
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/health", tags=["Health"])
+@app.get("/api/v1/health", tags=["Health"])
 def health_check():
     return {
         "status": "healthy",

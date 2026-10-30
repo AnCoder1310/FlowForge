@@ -97,11 +97,13 @@ def init_sqlite_db():
         status TEXT NOT NULL DEFAULT 'PENDING',
         retry_count INTEGER NOT NULL DEFAULT 0,
         max_retries INTEGER NOT NULL DEFAULT 3,
+        timeout_seconds INTEGER NOT NULL DEFAULT 300,
         input_payload TEXT NOT NULL DEFAULT '{}',
         output_payload TEXT,
         error_message TEXT,
         assigned_worker_id TEXT,
         scheduled_at TEXT,
+        claimed_at TEXT,
         started_at TEXT,
         completed_at TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -178,11 +180,100 @@ def init_sqlite_db():
     VALUES (?, ?, ?, ?, ?, ?)
     """, ("Order-Fulfillment-Saga", 1, "Distributed e-commerce order saga: payment validation, inventory allocation, shipment dispatch.", json.dumps(saga_dag), 1, 1))
 
+    # Seed Sample Workflow 3: AI-Customer-Feedback-Analyzer (v2 Production-Ready)
+    feedback_dag = {
+        "steps": [
+            {
+                "id": "step-fetch-reviews",
+                "name": "Fetch Customer Reviews",
+                "type": "HTTP_TASK",
+                "queue": "default",
+                "dependsOn": [],
+                "maxRetries": 3,
+                "timeoutSeconds": 30,
+                "configurationJson": json.dumps({"endpoint": "https://api.reviews.internal/v1/feed", "method": "GET"}),
+                "condition": None
+            },
+            {
+                "id": "step-ai-sentiment",
+                "name": "AI Sentiment & Topic Classification",
+                "type": "AI_AGENT_TASK",
+                "queue": "ai-agent",
+                "dependsOn": ["step-fetch-reviews"],
+                "maxRetries": 2,
+                "timeoutSeconds": 60,
+                "configurationJson": json.dumps({"model": "9Router-Sentiment-v1", "temperature": 0.2}),
+                "condition": None
+            },
+            {
+                "id": "step-ai-summary",
+                "name": "AI Executive Summary Generation",
+                "type": "AI_AGENT_TASK",
+                "queue": "ai-agent",
+                "dependsOn": ["step-ai-sentiment"],
+                "maxRetries": 2,
+                "timeoutSeconds": 90,
+                "configurationJson": json.dumps({"model": "9Router-Executive-Summarizer", "targetAudience": "C-Level"}),
+                "condition": None
+            },
+            {
+                "id": "step-detect-urgent",
+                "name": "Detect Urgent Reviews",
+                "type": "AI_AGENT_TASK",
+                "queue": "ai-agent",
+                "dependsOn": ["step-ai-sentiment"],
+                "maxRetries": 2,
+                "timeoutSeconds": 45,
+                "configurationJson": json.dumps({"thresholdSeverity": "CRITICAL"}),
+                "condition": None
+            },
+            {
+                "id": "step-alert-escalate",
+                "name": "Escalate Urgent Issues to Slack",
+                "type": "HTTP_TASK",
+                "queue": "default",
+                "dependsOn": ["step-detect-urgent"],
+                "maxRetries": 3,
+                "timeoutSeconds": 30,
+                "configurationJson": json.dumps({"channel": "#customer-escalations", "idempotencyHeader": "X-Idempotency-Key"}),
+                "condition": "hasUrgentReviews == true"
+            },
+            {
+                "id": "step-persist-insights",
+                "name": "Store Analytics Insights",
+                "type": "WORKER_TASK",
+                "queue": "data-io",
+                "dependsOn": ["step-ai-summary", "step-alert-escalate"],
+                "maxRetries": 3,
+                "timeoutSeconds": 120,
+                "configurationJson": json.dumps({"table": "analytics_customer_insights", "upsertKey": "batchId"}),
+                "condition": None
+            },
+            {
+                "id": "step-notify-report-ready",
+                "name": "Notify Analytics Report Ready",
+                "type": "NOTIFICATION",
+                "queue": "notification",
+                "dependsOn": ["step-persist-insights"],
+                "maxRetries": 2,
+                "timeoutSeconds": 30,
+                "configurationJson": json.dumps({"channels": ["email", "inapp"], "template": "analytics-ready-v1"}),
+                "condition": None
+            }
+        ]
+    }
+    cursor.execute("""
+    INSERT OR IGNORE INTO workflow_definitions (name, version, description, dag_definition, is_active, created_by)
+    VALUES (?, ?, ?, ?, ?, ?)
+    """, ("AI-Customer-Feedback-Analyzer", 2, "Production-grade Agentic DAG for Customer Feedback: parallel AI summarization & urgent issue detection, conditional Slack escalation with idempotency, converged insights storage, and notification dispatch.", json.dumps(feedback_dag), 1, 1))
+
     # Seed Sample Workers
     workers_data = [
-        ("worker-node-compute-01", "node-01.orchestrator.cluster", "ONLINE", json.dumps(["default", "compute", "data-io"]), 0, 16),
-        ("worker-node-compute-02", "node-02.orchestrator.cluster", "ONLINE", json.dumps(["default", "compute", "ml-worker"]), 0, 16),
-        ("worker-node-payments-01", "node-03.orchestrator.cluster", "ONLINE", json.dumps(["payment", "inventory", "logistics"]), 0, 8),
+        ("worker-default-01", "node-01.orchestrator.cluster", "ONLINE", json.dumps(["default", "notification"]), 0, 4),
+        ("worker-compute-01", "node-02.orchestrator.cluster", "ONLINE", json.dumps(["compute"]), 0, 4),
+        ("worker-ai-01", "node-03.orchestrator.cluster", "ONLINE", json.dumps(["ai-agent"]), 0, 2),
+        ("worker-data-01", "node-04.orchestrator.cluster", "ONLINE", json.dumps(["data-io"]), 0, 4),
+        ("worker-payment-01", "node-05.orchestrator.cluster", "ONLINE", json.dumps(["payment", "inventory", "logistics", "documents"]), 0, 2),
     ]
     for w in workers_data:
         cursor.execute("""

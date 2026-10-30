@@ -109,11 +109,14 @@ class InMemoryStore:
             updatedAt=now,
         )
 
-        # Seed Workers
+        # Seed Workers (Dedicated Multi-Worker Pool by Queue)
         seed_workers = [
-            ("worker-node-compute-01", "node-01.orchestrator.cluster", ["default", "compute", "data-io"], 16),
-            ("worker-node-compute-02", "node-02.orchestrator.cluster", ["default", "compute", "ml-worker"], 16),
-            ("worker-node-payments-01", "node-03.orchestrator.cluster", ["payment", "inventory", "logistics"], 8),
+            ("worker-default-01", "node-01.orchestrator.cluster", ["default", "notification"], 4),
+            ("worker-compute-01", "node-02.orchestrator.cluster", ["compute"], 4),
+            ("worker-ai-01", "node-03.orchestrator.cluster", ["ai-agent"], 2),
+            ("worker-data-01", "node-04.orchestrator.cluster", ["data-io"], 4),
+            ("worker-payment-01", "node-05.orchestrator.cluster", ["payment", "inventory", "logistics", "documents"], 2),
+            ("worker-node-compute-01", "legacy.orchestrator.cluster", ["default", "compute", "data-io", "payment", "ai-agent"], 16),
         ]
         for wid, host, queues, max_c in seed_workers:
             self._worker_seq += 1
@@ -128,6 +131,114 @@ class InMemoryStore:
                 lastHeartbeatAt=now,
                 registeredAt=now,
             )
+
+        # Load existing workflows, instances, and tasks from SQLite database
+        try:
+            import json
+            from app.persistence.database import get_db_connection
+            conn = get_db_connection()
+            rows = conn.execute("SELECT id, name, version, description, dag_definition, is_active, created_by FROM workflow_definitions WHERE deleted_at IS NULL").fetchall()
+            for r in rows:
+                wf_id = r["id"]
+                if wf_id not in self.workflows:
+                    dag_data = json.loads(r["dag_definition"])
+                    wf = WorkflowDefinition(
+                        id=wf_id,
+                        name=r["name"],
+                        version=r["version"],
+                        description=r["description"],
+                        dag=DagDefinition(**dag_data),
+                        isActive=bool(r["is_active"]),
+                        createdBy=r["created_by"] or 1,
+                        createdAt=now,
+                        updatedAt=now,
+                    )
+                    self.workflows[wf_id] = wf
+                    if wf_id > self._workflow_seq:
+                        self._workflow_seq = wf_id
+
+            def _parse_dt(val, default_val=None):
+                if not val:
+                    return default_val
+                try:
+                    s = str(val).replace(" ", "T")
+                    dt = datetime.fromisoformat(s)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    return dt
+                except Exception:
+                    return default_val
+
+            inst_rows = conn.execute("SELECT * FROM workflow_instances ORDER BY id ASC").fetchall()
+            for r in inst_rows:
+                inst_id = r["id"]
+                st_val = r["status"]
+                try:
+                    status_enum = WorkflowStatus(st_val)
+                except Exception:
+                    status_enum = WorkflowStatus.RUNNING
+
+                inst = WorkflowInstance(
+                    id=inst_id,
+                    workflowId=r["workflow_id"],
+                    workflowName=r["workflow_name"],
+                    version=r["version"],
+                    status=status_enum,
+                    inputPayloadJson=r["input_payload"] or "{}",
+                    outputPayloadJson=r["output_payload"],
+                    contextDataJson=r["context_data"] or "{}",
+                    errorMessage=r["error_message"],
+                    triggeredBy=r["triggered_by"] or 1,
+                    startedAt=_parse_dt(r["started_at"], now),
+                    completedAt=_parse_dt(r["completed_at"], None),
+                    createdAt=_parse_dt(r["created_at"], now),
+                    updatedAt=_parse_dt(r["updated_at"], now),
+                )
+                self.instances[inst_id] = inst
+                if inst_id > self._instance_seq:
+                    self._instance_seq = inst_id
+
+            task_rows = conn.execute("SELECT * FROM task_executions ORDER BY id ASC").fetchall()
+            for tr in task_rows:
+                t_id = tr["id"]
+                try:
+                    tt_enum = TaskType(tr["task_type"])
+                except Exception:
+                    tt_enum = TaskType.WORKER_TASK
+                try:
+                    step_st_enum = StepStatus(tr["status"])
+                except Exception:
+                    step_st_enum = StepStatus.PENDING
+
+                task = TaskExecution(
+                    id=t_id,
+                    instanceId=tr["instance_id"],
+                    stepId=tr["step_id"],
+                    stepName=tr["step_name"],
+                    taskType=tt_enum,
+                    queueName=tr["queue_name"] or "default",
+                    status=step_st_enum,
+                    retryCount=tr["retry_count"] or 0,
+                    maxRetries=tr["max_retries"] or 3,
+                    timeoutSeconds=tr["timeout_seconds"] or 300,
+                    inputPayloadJson=tr["input_payload"] or "{}",
+                    outputPayloadJson=tr["output_payload"],
+                    errorMessage=tr["error_message"],
+                    assignedWorkerId=tr["assigned_worker_id"],
+                    scheduledAt=_parse_dt(tr["scheduled_at"], None),
+                    claimedAt=_parse_dt(tr["claimed_at"], None),
+                    startedAt=_parse_dt(tr["started_at"], None),
+                    completedAt=_parse_dt(tr["completed_at"], None),
+                    createdAt=_parse_dt(tr["created_at"], now),
+                    updatedAt=_parse_dt(tr["updated_at"], now),
+                )
+                self.tasks[t_id] = task
+                if t_id > self._task_seq:
+                    self._task_seq = t_id
+
+            conn.close()
+        except Exception:
+            pass
 
     # --- Users ---
     def find_user_by_email(self, email: str) -> Optional[UserAccount]:
@@ -162,11 +273,41 @@ class InMemoryStore:
             self._workflow_seq += 1
             created = wf.model_copy(update={"id": self._workflow_seq})
             self.workflows[created.id] = created
+            try:
+                from app.persistence.database import get_db_connection
+                conn = get_db_connection()
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO workflow_definitions (id, name, version, description, dag_definition, is_active, created_by, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    """,
+                    (created.id, created.name, created.version, created.description, created.dag.model_dump_json(), 1 if created.isActive else 0, created.createdBy)
+                )
+                conn.commit()
+                conn.close()
+            except Exception as ex:
+                pass
             return created
 
     def update_workflow(self, wf: WorkflowDefinition) -> None:
         with self._lock:
             self.workflows[wf.id] = wf
+            try:
+                from app.persistence.database import get_db_connection
+                conn = get_db_connection()
+                deleted_str = wf.deletedAt.isoformat() if wf.deletedAt else None
+                conn.execute(
+                    """
+                    UPDATE workflow_definitions
+                    SET name = ?, version = ?, description = ?, dag_definition = ?, is_active = ?, deleted_at = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (wf.name, wf.version, wf.description, wf.dag.model_dump_json(), 1 if wf.isActive else 0, deleted_str, wf.id)
+                )
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
 
     # --- Executions & Tasks ---
     def add_instance(self, instance: WorkflowInstance) -> WorkflowInstance:
@@ -174,6 +315,20 @@ class InMemoryStore:
             self._instance_seq += 1
             created = instance.model_copy(update={"id": self._instance_seq})
             self.instances[created.id] = created
+            try:
+                from app.persistence.database import get_db_connection
+                conn = get_db_connection()
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO workflow_instances (id, workflow_id, workflow_name, version, status, input_payload, output_payload, context_data, error_message, triggered_by, started_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+                    """,
+                    (created.id, created.workflowId, created.workflowName, created.version, created.status.value, created.inputPayloadJson, created.outputPayloadJson, created.contextDataJson, created.errorMessage, created.triggeredBy)
+                )
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
             return created
 
     def get_instance(self, instance_id: int) -> Optional[WorkflowInstance]:
@@ -183,6 +338,22 @@ class InMemoryStore:
     def update_instance(self, instance: WorkflowInstance) -> None:
         with self._lock:
             self.instances[instance.id] = instance
+            try:
+                from app.persistence.database import get_db_connection
+                conn = get_db_connection()
+                comp_str = instance.completedAt.isoformat() if instance.completedAt else None
+                conn.execute(
+                    """
+                    UPDATE workflow_instances
+                    SET status = ?, output_payload = ?, error_message = ?, completed_at = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (instance.status.value, instance.outputPayloadJson, instance.errorMessage, comp_str, instance.id)
+                )
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
 
     def list_instances(
         self,
@@ -206,6 +377,23 @@ class InMemoryStore:
             self._task_seq += 1
             created = task.model_copy(update={"id": self._task_seq})
             self.tasks[created.id] = created
+            try:
+                from app.persistence.database import get_db_connection
+                conn = get_db_connection()
+                sched_str = created.scheduledAt.isoformat() if created.scheduledAt else None
+                claimed_str = created.claimedAt.isoformat() if created.claimedAt else None
+                started_str = created.startedAt.isoformat() if created.startedAt else None
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO task_executions (id, instance_id, step_id, step_name, task_type, queue_name, status, retry_count, max_retries, timeout_seconds, input_payload, output_payload, error_message, assigned_worker_id, scheduled_at, claimed_at, started_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    """,
+                    (created.id, created.instanceId, created.stepId, created.stepName, created.taskType.value, created.queueName, created.status.value, created.retryCount, created.maxRetries, created.timeoutSeconds, created.inputPayloadJson, created.outputPayloadJson, created.errorMessage, created.assignedWorkerId, sched_str, claimed_str, started_str)
+                )
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
             return created
 
     def get_task(self, task_id: int) -> Optional[TaskExecution]:
@@ -215,6 +403,25 @@ class InMemoryStore:
     def update_task(self, task: TaskExecution) -> None:
         with self._lock:
             self.tasks[task.id] = task
+            try:
+                from app.persistence.database import get_db_connection
+                conn = get_db_connection()
+                comp_str = task.completedAt.isoformat() if task.completedAt else None
+                claimed_str = task.claimedAt.isoformat() if task.claimedAt else None
+                started_str = task.startedAt.isoformat() if task.startedAt else None
+                sched_str = task.scheduledAt.isoformat() if task.scheduledAt else None
+                conn.execute(
+                    """
+                    UPDATE task_executions
+                    SET status = ?, output_payload = ?, error_message = ?, assigned_worker_id = ?, retry_count = ?, timeout_seconds = ?, scheduled_at = ?, claimed_at = ?, started_at = ?, completed_at = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (task.status.value, task.outputPayloadJson, task.errorMessage, task.assignedWorkerId, task.retryCount, task.timeoutSeconds, sched_str, claimed_str, started_str, comp_str, task.id)
+                )
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
 
     def get_tasks_for_instance(self, instance_id: int) -> List[TaskExecution]:
         with self._lock:
@@ -222,19 +429,179 @@ class InMemoryStore:
 
     def poll_scheduled_task(self, worker_id: str, queues: List[str]) -> Optional[TaskExecution]:
         with self._lock:
+            # 1. Concurrency limit check
+            worker = self.workers.get(worker_id)
+            if worker and worker.currentLoad >= worker.maxConcurrency:
+                return None
+
             allowed_queues = set(queues) if queues else {"default"}
             now = datetime.now(timezone.utc)
-            for task in self.tasks.values():
-                if task.status == StepStatus.SCHEDULED and task.queueName in allowed_queues:
-                    assigned = task.model_copy(update={
-                        "status": StepStatus.RUNNING,
-                        "assignedWorkerId": worker_id,
-                        "startedAt": now,
-                        "updatedAt": now
+            now_iso = now.isoformat()
+
+            # 2. Sort by scheduledAt, then id (Fair FIFO)
+            candidates = [
+                t for t in self.tasks.values()
+                if t.status == StepStatus.SCHEDULED and t.queueName in allowed_queues
+            ]
+            candidates.sort(key=lambda x: (x.scheduledAt or now, x.id))
+
+            for task in candidates:
+                # 3. Atomic DB Compare-And-Swap
+                claimed_db = False
+                try:
+                    from app.persistence.database import get_db_connection
+                    conn = get_db_connection()
+                    cur = conn.execute(
+                        """
+                        UPDATE task_executions
+                        SET status = 'RUNNING', assigned_worker_id = ?, claimed_at = ?, started_at = ?, updated_at = ?
+                        WHERE id = ? AND status = 'SCHEDULED'
+                        """,
+                        (worker_id, now_iso, now_iso, now_iso, task.id)
+                    )
+                    conn.commit()
+                    claimed_db = (cur.rowcount == 1)
+                    conn.close()
+                except Exception:
+                    claimed_db = True
+
+                if not claimed_db:
+                    continue
+
+                # 4. Update memory store
+                assigned = task.model_copy(update={
+                    "status": StepStatus.RUNNING,
+                    "assignedWorkerId": worker_id,
+                    "claimedAt": now,
+                    "startedAt": now,
+                    "updatedAt": now,
+                    "attempt": task.retryCount + 1,
+                })
+                self.tasks[assigned.id] = assigned
+
+                # 5. Increment worker load & update status
+                if worker:
+                    new_load = worker.currentLoad + 1
+                    new_status = WorkerStatus.BUSY if new_load >= worker.maxConcurrency else WorkerStatus.ONLINE
+                    updated_worker = worker.model_copy(update={
+                        "currentLoad": new_load,
+                        "status": new_status,
+                        "lastHeartbeatAt": now
                     })
-                    self.tasks[assigned.id] = assigned
-                    return assigned
+                    self.workers[worker_id] = updated_worker
+                    try:
+                        from app.persistence.database import get_db_connection
+                        conn = get_db_connection()
+                        conn.execute(
+                            "UPDATE worker_nodes SET current_load = ?, status = ?, last_heartbeat_at = ? WHERE worker_id = ?",
+                            (new_load, new_status.value, now_iso, worker_id)
+                        )
+                        conn.commit()
+                        conn.close()
+                    except Exception:
+                        pass
+
+                return assigned
+
             return None
+
+    def release_worker_slot(self, worker_id: Optional[str], completed: bool = False) -> None:
+        if not worker_id:
+            return
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            now_iso = now.isoformat()
+            if worker_id in self.workers:
+                w = self.workers[worker_id]
+                new_load = max(0, w.currentLoad - 1)
+                new_status = WorkerStatus.ONLINE if w.status == WorkerStatus.BUSY else w.status
+                new_completed = getattr(w, "completedTasks", 0) + (1 if completed else 0)
+                updated = w.model_copy(update={
+                    "currentLoad": new_load,
+                    "completedTasks": new_completed,
+                    "status": new_status,
+                })
+                self.workers[worker_id] = updated
+                try:
+                    from app.persistence.database import get_db_connection
+                    conn = get_db_connection()
+                    conn.execute(
+                        "UPDATE worker_nodes SET current_load = ?, status = ?, last_heartbeat_at = ? WHERE worker_id = ?",
+                        (new_load, new_status.value, now_iso, worker_id)
+                    )
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+
+    def reclaim_stale_tasks(self, heartbeat_timeout_seconds: int = 45) -> dict:
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            offline_workers = set()
+
+            # 1. Mark stale workers OFFLINE
+            for w in self.workers.values():
+                if w.status != WorkerStatus.OFFLINE:
+                    diff = (now - w.lastHeartbeatAt).total_seconds()
+                    if diff > heartbeat_timeout_seconds:
+                        self.workers[w.workerId] = w.model_copy(update={"status": WorkerStatus.OFFLINE, "currentLoad": 0})
+                        offline_workers.add(w.workerId)
+                        try:
+                            from app.persistence.database import get_db_connection
+                            conn = get_db_connection()
+                            conn.execute("UPDATE worker_nodes SET status = 'OFFLINE', current_load = 0 WHERE worker_id = ?", (w.workerId,))
+                            conn.commit()
+                            conn.close()
+                        except Exception:
+                            pass
+
+            reclaimed_count = 0
+            # 2. Check running tasks for dead worker or timeout
+            for task in list(self.tasks.values()):
+                if task.status == StepStatus.RUNNING:
+                    is_worker_dead = task.assignedWorkerId in offline_workers
+                    is_timed_out = False
+                    if task.startedAt:
+                        run_duration = (now - task.startedAt).total_seconds()
+                        if run_duration > (task.timeoutSeconds or 300):
+                            is_timed_out = True
+
+                    if is_worker_dead or is_timed_out:
+                        reason = "worker offline" if is_worker_dead else f"execution timed out after {task.timeoutSeconds}s"
+                        if task.retryCount < task.maxRetries:
+                            rescheduled = task.model_copy(update={
+                                "status": StepStatus.SCHEDULED,
+                                "retryCount": task.retryCount + 1,
+                                "assignedWorkerId": None,
+                                "errorMessage": f"Auto-reclaimed: {reason}",
+                                "scheduledAt": now,
+                                "updatedAt": now,
+                            })
+                            self.tasks[rescheduled.id] = rescheduled
+                            reclaimed_count += 1
+                            self.record_audit("RETRY", "TASK", f"Reclaimed task #{task.id} '{task.stepName}' ({reason}) -> Rescheduled (attempt {rescheduled.retryCount + 1}/{task.maxRetries})")
+                        else:
+                            failed = task.model_copy(update={
+                                "status": StepStatus.FAILED,
+                                "errorMessage": f"Failed after {task.maxRetries} attempts ({reason})",
+                                "completedAt": now,
+                                "updatedAt": now,
+                            })
+                            self.tasks[failed.id] = failed
+                            self.record_audit("FAIL", "TASK", f"Task #{task.id} '{task.stepName}' failed: exhausted retries ({reason})")
+                            inst = self.instances.get(task.instanceId)
+                            if inst and inst.status == WorkflowStatus.RUNNING:
+                                self.update_instance(inst.model_copy(update={
+                                    "status": WorkflowStatus.FAILED,
+                                    "errorMessage": f"Task '{task.stepName}' failed: {reason}",
+                                    "completedAt": now,
+                                    "updatedAt": now
+                                }))
+
+            return {
+                "offlineWorkersCount": len(offline_workers),
+                "reclaimedTasksCount": reclaimed_count
+            }
 
     # --- Workers ---
     def upsert_worker(self, worker: WorkerNode) -> WorkerNode:
@@ -298,5 +665,19 @@ class InMemoryStore:
                 metadata=metadata
             )
             self.audits.append(log)
+            try:
+                from app.persistence.database import get_db_connection
+                conn = get_db_connection()
+                conn.execute(
+                    """
+                    INSERT INTO audit_logs (id, actor_user_id, action, module, detail, created_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    """,
+                    (log.id, user_id, action, module, detail)
+                )
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
 
 store = InMemoryStore()

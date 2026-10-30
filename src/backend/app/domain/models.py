@@ -33,6 +33,7 @@ class TaskType(str, Enum):
     DECISION = "DECISION"
     DELAY = "DELAY"
     AI_AGENT_TASK = "AI_AGENT_TASK"
+    NOTIFICATION = "NOTIFICATION"
 
 class WorkerStatus(str, Enum):
     ONLINE = "ONLINE"
@@ -50,6 +51,7 @@ class DagStep(BaseModel):
     maxRetries: int = 3
     timeoutSeconds: int = 300
     configurationJson: Optional[str] = None
+    condition: Optional[str] = None
 
 class DagDefinition(BaseModel):
     steps: List[DagStep]
@@ -73,6 +75,7 @@ class CreateWorkflowRequest(BaseModel):
     dag: DagDefinition
 
 class UpdateWorkflowRequest(BaseModel):
+    name: Optional[str] = None
     description: Optional[str] = None
     dag: Optional[DagDefinition] = None
     isActive: Optional[bool] = None
@@ -88,15 +91,20 @@ class TaskExecution(BaseModel):
     status: StepStatus = StepStatus.PENDING
     retryCount: int = 0
     maxRetries: int = 3
+    timeoutSeconds: int = 300
     inputPayloadJson: str = "{}"
     outputPayloadJson: Optional[str] = None
     errorMessage: Optional[str] = None
     assignedWorkerId: Optional[str] = None
     scheduledAt: Optional[datetime] = None
+    claimedAt: Optional[datetime] = None
     startedAt: Optional[datetime] = None
     completedAt: Optional[datetime] = None
     createdAt: datetime
     updatedAt: datetime
+    attempt: int = 1
+    releasedSteps: Optional[List[str]] = None
+    condition: Optional[str] = None
 
 class WorkflowInstance(BaseModel):
     id: int
@@ -134,6 +142,7 @@ class WorkerNode(BaseModel):
     supportedQueues: List[str] = Field(default_factory=lambda: ["default"])
     currentLoad: int = 0
     maxConcurrency: int = 10
+    completedTasks: int = 0
     lastHeartbeatAt: datetime
     registeredAt: datetime
 
