@@ -8,16 +8,6 @@ from app.main import app
 def anyio_backend():
     return "asyncio"
 
-@pytest.fixture(autouse=True)
-def reset_store():
-    fresh = InMemoryStore()
-    store.users = fresh.users
-    store.workflows = fresh.workflows
-    store.instances = fresh.instances
-    store.tasks = fresh.tasks
-    store.workers = fresh.workers
-    store.audits = fresh.audits
-    yield
 
 @pytest.fixture
 async def client():

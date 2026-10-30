@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { I } from "../../../lib/icons";
 import { initials, roleUi } from "../../../lib/format";
 import { ROLE_LABEL } from "../../../lib/auth";
-import { useFinance } from "../../../lib/store";
+import { useOrchestrator } from "../../../lib/store";
 
 export function RolePill({ role }) {
   return <span className="role-text">{roleUi(role)}</span>;
 }
 
 export default function UsersPage() {
-  const { users } = useFinance();
+  const { users } = useOrchestrator();
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
   const [modal, setModal] = useState(null);

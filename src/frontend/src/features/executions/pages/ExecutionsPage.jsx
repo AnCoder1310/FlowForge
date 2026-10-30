@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { useFinance } from "../../../lib/store";
+import { useOrchestrator } from "../../../lib/store";
 import { I } from "../../../lib/icons";
 import { api } from "../../../lib/api";
 
 export default function ExecutionsPage() {
-  const { executions, cancelExecution, can, toast, loadExecutions } = useFinance();
+  const { executions, cancelExecution, can, toast, loadExecutions } = useOrchestrator();
   const location = useLocation();
   const highlightId = location.state?.highlightId;
 

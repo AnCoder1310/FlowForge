@@ -1,8 +1,8 @@
-import { useFinance } from "../lib/store";
+import { useOrchestrator } from "../lib/store";
 import { I } from "../lib/icons";
 
 export default function WorkersPage() {
-  const { workers } = useFinance();
+  const { workers } = useOrchestrator();
 
   return (
     <div className="workers-page">

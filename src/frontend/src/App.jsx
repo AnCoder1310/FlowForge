@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect } from "react";
 import { HashRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { FinanceProvider, useFinance } from "./lib/store";
+import { OrchestratorProvider, useOrchestrator } from "./lib/store";
 import { PAGE_PERM, can } from "./lib/auth";
 import Login from "./features/auth/pages/Login";
 import Shell from "./components/Shell";
@@ -14,14 +14,14 @@ import UsersPage from "./features/users/pages/UsersPage";
 import ProfilePage, { Forbidden } from "./features/profile/pages/ProfilePage";
 
 function Guard({ perm, children }) {
-  const { current } = useFinance();
+  const { current } = useOrchestrator();
   if (!current) return <Navigate to="/login" replace />;
   if (perm && !can(current, perm)) return <Navigate to="/403" replace />;
   return children;
 }
 
 function BodyClass() {
-  const { current, toasts } = useFinance();
+  const { current, toasts } = useOrchestrator();
   const loc = useLocation();
   useEffect(() => {
     document.body.classList.toggle("login-mode", !current || loc.pathname === "/login");
@@ -50,7 +50,7 @@ function NavigationEffects() {
 }
 
 function AppRoutes() {
-  const { current } = useFinance();
+  const { current } = useOrchestrator();
   return (
     <>
       <BodyClass />
@@ -76,10 +76,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <FinanceProvider>
+    <OrchestratorProvider>
       <HashRouter>
         <AppRoutes />
       </HashRouter>
-    </FinanceProvider>
+    </OrchestratorProvider>
   );
 }

@@ -57,10 +57,10 @@ FlowForge organizes capabilities across 14 discrete use cases (`UC01` to `UC14`)
 flowchart TB
     subgraph actors["System Actors"]
         direction LR
-        admin(["👤 Administrator"]):::actorPill
-        operator(["👤 Operations Lead"]):::actorPill
-        dev(["👤 Workflow Developer"]):::actorPill
-        viewer(["👤 Platform Observer"]):::actorPill
+        admin(["Administrator"]):::actorPill
+        operator(["Operations Lead"]):::actorPill
+        dev(["Workflow Developer"]):::actorPill
+        viewer(["Platform Observer"]):::actorPill
     end
 
     subgraph dwopBoundary["FlowForge — System Boundary (Role-Based Use Case Allocation)"]
@@ -170,10 +170,10 @@ The System Context diagram illustrates how FlowForge fits into the enterprise ec
 flowchart TB
     subgraph actors["Users & Personas"]
         direction LR
-        admin(["👤 Administrator<br/><i>[Platform Owner]</i>"]):::actor
-        operator(["👤 Operations Lead<br/><i>[SRE / DevOps Lead]</i>"]):::actor
-        dev(["👤 Workflow Developer<br/><i>[Data / Pipeline Engineer]</i>"]):::actor
-        viewer(["👤 Platform Observer<br/><i>[Auditor / Stakeholder]</i>"]):::actor
+        admin(["Administrator<br/><i>[Platform Owner]</i>"]):::actor
+        operator(["Operations Lead<br/><i>[SRE / DevOps Lead]</i>"]):::actor
+        dev(["Workflow Developer<br/><i>[Data / Pipeline Engineer]</i>"]):::actor
+        viewer(["Platform Observer<br/><i>[Auditor / Stakeholder]</i>"]):::actor
     end
 
     subgraph platformBoundary["FlowForge Platform Boundary"]
@@ -182,10 +182,10 @@ flowchart TB
 
     subgraph externals["External Ecosystem & Infrastructure"]
         direction LR
-        aiGateway["🤖 9Router AI Service<br/><i>[External LLM Gateway]</i><br/>DeepSeek / GPT-4o Prompt-to-DAG<br/>& Root-Cause Failure Analysis"]:::aiExternal
-        workerNodes["🐝 Distributed Worker Cluster<br/><i>[External Compute Nodes]</i><br/>5 Isolated Task Queues<br/>Atomic Claiming & Heartbeat Sentinel"]:::workerExternal
-        slackNotify["📢 Notification Channels<br/><i>[External SaaS Webhook]</i><br/>Slack Webhook, PagerDuty, Email<br/>with Idempotency Key Guarantee"]:::notifyExternal
-        dataStorage["🏢 Enterprise Data Lake / DW<br/><i>[External Storage]</i><br/>Parquet Lakehouse, Analytical DB,<br/>PostgreSQL Production Storage"]:::storageExternal
+        aiGateway["9Router AI Service<br/><i>[External LLM Gateway]</i><br/>DeepSeek / GPT-4o Prompt-to-DAG<br/>& Root-Cause Failure Analysis"]:::aiExternal
+        workerNodes["Distributed Worker Cluster<br/><i>[External Compute Nodes]</i><br/>5 Isolated Task Queues<br/>Atomic Claiming & Heartbeat Sentinel"]:::workerExternal
+        slackNotify["Notification Channels<br/><i>[External SaaS Webhook]</i><br/>Slack Webhook, PagerDuty, Email<br/>with Idempotency Key Guarantee"]:::notifyExternal
+        dataStorage["Enterprise Data Lake / DW<br/><i>[External Storage]</i><br/>Parquet Lakehouse, Analytical DB,<br/>PostgreSQL Production Storage"]:::storageExternal
     end
 
     admin -- "Manages RBAC, users & audit trail [HTTPS]" --> flowforge
@@ -220,34 +220,34 @@ The Container diagram zooms into the FlowForge platform, illustrating high-level
 flowchart TB
     subgraph users["Actors"]
         direction LR
-        operator(["👤 Operator / Admin / Developer"]):::actor
-        viewer(["👤 Platform Observer"]):::actor
+        operator(["Operator / Admin / Developer"]):::actor
+        viewer(["Platform Observer"]):::actor
     end
 
     subgraph dwop["FlowForge Platform Boundary [System]"]
         direction TB
 
         subgraph presentation["Presentation Layer"]
-            web["🖥️ Web Console<br/><i>[React 18 + Vite SPA]</i><br/>Tailwind CSS · Dark/Light Mode<br/>Kahn Stage Visualizer · Task Progress Tracker<br/>Visual Workflow Studio & Monaco JSON Editor"]:::webContainer
+            web["Web Console<br/><i>[React 18 + Vite SPA]</i><br/>Tailwind CSS · Dark/Light Mode<br/>Kahn Stage Visualizer · Task Progress Tracker<br/>Visual Workflow Studio & Monaco JSON Editor"]:::webContainer
         end
 
         subgraph application["Application & Orchestration Layer"]
-            backend["⚡ FastAPI Master Orchestrator<br/><i>[Python 3.11 ASGI Engine]</i><br/>REST API v1 · Bearer HMAC-SHA256 Auth<br/>Kahn DAG Engine · State Machine & SKIPPED Cascade<br/>5-Lane Queue Dispatcher · 9Router AI Copilot"]:::apiContainer
+            backend["FastAPI Master Orchestrator<br/><i>[Python 3.11 ASGI Engine]</i><br/>REST API v1 · Bearer HMAC-SHA256 Auth<br/>Kahn DAG Engine · State Machine & SKIPPED Cascade<br/>5-Lane Queue Dispatcher · 9Router AI Copilot"]:::apiContainer
         end
 
         subgraph workerCluster["Distributed Execution Layer"]
-            workers["🐝 Worker Daemon Fleet<br/><i>[Multi-Node Cluster / Python]</i><br/>worker-default · worker-compute<br/>worker-ai · worker-data · worker-payment<br/>Atomic Claiming · 45s Heartbeat Sentinel"]:::workerContainer
+            workers["Worker Daemon Fleet<br/><i>[Multi-Node Cluster / Python]</i><br/>worker-default · worker-compute<br/>worker-ai · worker-data · worker-payment<br/>Atomic Claiming · 45s Heartbeat Sentinel"]:::workerContainer
         end
 
         subgraph persistence["Data Storage Layer"]
-            database[("💾 Relational Database<br/><i>[SQLite Local / PostgreSQL Prod]</i><br/>app_users · workflow_definitions<br/>workflow_instances · task_executions<br/>worker_nodes · audit_logs")]:::dbContainer
+            database[("Relational Database<br/><i>[SQLite Local / PostgreSQL Prod]</i><br/>app_users · workflow_definitions<br/>workflow_instances · task_executions<br/>worker_nodes · audit_logs")]:::dbContainer
         end
     end
 
     subgraph externalServices["External Cloud & Services"]
-        llm["🤖 9Router AI Gateway<br/><i>[LLM API Engine]</i><br/>Prompt-to-DAG & Diagnostics"]:::aiExternal
-        slack["💬 Slack / Alert Gateway<br/><i>[HTTP Webhook API]</i><br/>P1 Escalation with Idempotency"]:::notifyExternal
-        dataLake["🏢 Enterprise Analytics Storage<br/><i>[Data Warehouse / Lake]</i><br/>Parquet & Analytics Tables"]:::storageExternal
+        llm["9Router AI Gateway<br/><i>[LLM API Engine]</i><br/>Prompt-to-DAG & Diagnostics"]:::aiExternal
+        slack["Slack / Alert Gateway<br/><i>[HTTP Webhook API]</i><br/>P1 Escalation with Idempotency"]:::notifyExternal
+        dataLake["Enterprise Analytics Storage<br/><i>[Data Warehouse / Lake]</i><br/>Parquet & Analytics Tables"]:::storageExternal
     end
 
     operator -- "Manages workflows, triggers runs, configures RBAC [HTTPS]" --> web
@@ -286,7 +286,7 @@ The Component diagram zooms into the **FastAPI Master Orchestrator Container**, 
 ```mermaid
 flowchart TB
     subgraph webLayer["Presentation Client"]
-        web["🖥️ React 18 Web Console"]:::webClient
+        web["React 18 Web Console"]:::webClient
     end
 
     subgraph master["FastAPI Master Orchestrator Container [Application Boundary]"]
@@ -330,9 +330,9 @@ flowchart TB
     end
 
     subgraph dataLayer["Persistence & External Services"]
-        db[("💾 SQLite / PostgreSQL Database")]:::dbBox
-        workerCluster["🐝 Distributed Worker Cluster"]:::workerBox
-        aiGateway["🤖 9Router AI Gateway (LLM API)"]:::aiBox
+        db[("SQLite / PostgreSQL Database")]:::dbBox
+        workerCluster["Distributed Worker Cluster"]:::workerBox
+        aiGateway["9Router AI Gateway (LLM API)"]:::aiBox
     end
 
     web --> apiTier
@@ -621,9 +621,9 @@ flowchart TB
         service --> store
     end
 
-    web["🖥️ Web Console<br/><i>[React 18 SPA]</i>"]
-    worker["🐝 Worker Node<br/><i>[Worker Daemon]</i>"]
-    db[("💾 Database<br/><i>[SQLite / PostgreSQL]</i>")]
+    web["Web Console<br/><i>[React 18 SPA]</i>"]
+    worker["Worker Node<br/><i>[Worker Daemon]</i>"]
+    db[("Database<br/><i>[SQLite / PostgreSQL]</i>")]
 
     web --> handler
     queue <--> worker
@@ -650,9 +650,9 @@ flowchart TB
         aiService --> diagModel
     end
 
-    web["🖥️ Web Console<br/><i>[React 18 SPA]</i>"]
+    web["Web Console<br/><i>[React 18 SPA]</i>"]
     execService["ExecutionService<br/><i>[State Machine Service]</i>"]
-    llm["🤖 9Router AI Gateway<br/><i>[DeepSeek / OpenAI]</i>"]
+    llm["9Router AI Gateway<br/><i>[DeepSeek / OpenAI]</i>"]
 
     web --> aiRouter
     aiService --> execService

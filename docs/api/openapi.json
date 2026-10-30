@@ -858,6 +858,25 @@
         }
       }
     },
+    "/api/v1/tasks/reclaim-stale": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Reclaim Stale Tasks",
+        "operationId": "reclaim_stale_tasks_api_v1_tasks_reclaim_stale_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/workers/register": {
       "post": {
         "tags": [
@@ -1042,7 +1061,7 @@
           "AI Engine"
         ],
         "summary": "Generate Workflow Dag",
-        "description": "Tự động thiết kế DAG workflow từ prompt văn bản tự nhiên sử dụng AI.",
+        "description": "T\u1ef1 \u0111\u1ed9ng thi\u1ebft k\u1ebf DAG workflow t\u1eeb prompt v\u0103n b\u1ea3n t\u1ef1 nhi\u00ean s\u1eed d\u1ee5ng AI.",
         "operationId": "generate_workflow_dag_api_v1_ai_generate_workflow_post",
         "parameters": [
           {
@@ -1102,7 +1121,7 @@
           "AI Engine"
         ],
         "summary": "Diagnose Execution Failure",
-        "description": "Phân tích nguyên nhân gốc rễ và đề xuất giải pháp khi một task hoặc workflow bị lỗi (Self-healing).",
+        "description": "Ph\u00e2n t\u00edch nguy\u00ean nh\u00e2n g\u1ed1c r\u1ec5 v\u00e0 \u0111\u1ec1 xu\u1ea5t gi\u1ea3i ph\u00e1p khi m\u1ed9t task ho\u1eb7c workflow b\u1ecb l\u1ed7i (Self-healing).",
         "operationId": "diagnose_execution_failure_api_v1_ai_diagnose_failure_post",
         "parameters": [
           {
@@ -1616,13 +1635,13 @@
         }
       }
     },
-    "/api/v1/audit": {
+    "/api/v1/audit-logs": {
       "get": {
         "tags": [
           "Audit"
         ],
         "summary": "List Audits",
-        "operationId": "list_audits_api_v1_audit_get",
+        "operationId": "list_audits_api_v1_audit_logs_get",
         "parameters": [
           {
             "name": "page",
@@ -1645,6 +1664,54 @@
               "minimum": 1,
               "default": 50,
               "title": "Pagesize"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Datefrom"
+            }
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dateto"
             }
           },
           {
@@ -1680,6 +1747,143 @@
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "List Audits",
+        "operationId": "list_audits_api_v1_audit_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Pagesize"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Datefrom"
+            }
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dateto"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           }
@@ -1990,6 +2194,17 @@
               }
             ],
             "title": "Configurationjson"
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition"
           }
         },
         "type": "object",
@@ -2364,6 +2579,11 @@
             "title": "Maxretries",
             "default": 3
           },
+          "timeoutSeconds": {
+            "type": "integer",
+            "title": "Timeoutseconds",
+            "default": 300
+          },
           "inputPayloadJson": {
             "type": "string",
             "title": "Inputpayloadjson",
@@ -2414,6 +2634,18 @@
             ],
             "title": "Scheduledat"
           },
+          "claimedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimedat"
+          },
           "startedAt": {
             "anyOf": [
               {
@@ -2447,6 +2679,36 @@
             "type": "string",
             "format": "date-time",
             "title": "Updatedat"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt",
+            "default": 1
+          },
+          "releasedSteps": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Releasedsteps"
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition"
           }
         },
         "type": "object",
@@ -2468,7 +2730,8 @@
           "SYSTEM_TASK",
           "DECISION",
           "DELAY",
-          "AI_AGENT_TASK"
+          "AI_AGENT_TASK",
+          "NOTIFICATION"
         ],
         "title": "TaskType"
       },
@@ -2591,6 +2854,17 @@
       },
       "UpdateWorkflowRequest": {
         "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
           "description": {
             "anyOf": [
               {
@@ -2711,6 +2985,11 @@
             "type": "integer",
             "title": "Maxconcurrency",
             "default": 10
+          },
+          "completedTasks": {
+            "type": "integer",
+            "title": "Completedtasks",
+            "default": 0
           },
           "lastHeartbeatAt": {
             "type": "string",

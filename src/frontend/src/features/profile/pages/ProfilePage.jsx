@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { I } from "../../../lib/icons";
 import { roleUi } from "../../../lib/format";
-import { useFinance } from "../../../lib/store";
+import { useOrchestrator } from "../../../lib/store";
 import { RolePill } from "../../users/pages/UsersPage";
 
 export function Forbidden() {
@@ -20,7 +20,7 @@ export function Forbidden() {
 }
 
 export default function ProfilePage() {
-  const { current, toast } = useFinance();
+  const { current, toast } = useOrchestrator();
   const nav = useNavigate();
   const [tab, setTab] = useState("account");
   const displayName = current?.name || "User";

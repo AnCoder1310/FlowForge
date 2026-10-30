@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useFinance } from "../lib/store";
+import { useOrchestrator } from "../lib/store";
 import { I } from "../lib/icons";
 import { api } from "../lib/api";
 
 export default function WorkflowDefinitionsPage() {
-  const { workflows, triggerWorkflow, createWorkflow, can, toast } = useFinance();
+  const { workflows, triggerWorkflow, createWorkflow, can, toast } = useOrchestrator();
   const [selectedWf, setSelectedWf] = useState(null);
   const [triggerModalWf, setTriggerModalWf] = useState(null);
   const [inputPayload, setInputPayload] = useState('{\n  "source": "manual",\n  "debug": false\n}');

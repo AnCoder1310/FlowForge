@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useFinance } from "../../../lib/store";
+import { useOrchestrator } from "../../../lib/store";
 import { I } from "../../../lib/icons";
 import { api } from "../../../lib/api";
 
@@ -223,7 +223,7 @@ export function canvasToDag(nodes, edges) {
 }
 
 export default function WorkflowStudio({ initialWorkflow = null, onClose = null }) {
-  const { createWorkflow, updateWorkflow, triggerWorkflow, toast } = useFinance();
+  const { createWorkflow, updateWorkflow, triggerWorkflow, toast } = useOrchestrator();
   const nav = useNavigate();
   const loc = useLocation();
   const targetWorkflow = initialWorkflow || loc.state?.workflow || null;

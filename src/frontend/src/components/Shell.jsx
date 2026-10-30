@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { I } from "../lib/icons";
 import { initials, roleUi } from "../lib/format";
-import { useFinance } from "../lib/store";
+import { useOrchestrator } from "../lib/store";
 import { BrandLogo } from "./BrandLogo";
 
 const NAV_GROUPS = [
@@ -26,7 +26,7 @@ const NAV_GROUPS = [
 ];
 
 export default function Shell() {
-  const { current, can, logout, confirm, setConfirm, metrics } = useFinance();
+  const { current, can, logout, confirm, setConfirm, metrics } = useOrchestrator();
   const nav = useNavigate();
   const location = useLocation();
   const [dd, setDd] = useState(false);

@@ -4,10 +4,10 @@ The context defines the external actors, worker nodes, external services, and pl
 
 ```mermaid
 flowchart LR
-    admin(["👤 Administrator"])
-    operator(["👤 Operations Lead"])
-    dev(["👤 Workflow Developer"])
-    viewer(["👤 Platform Observer"])
+    admin(["Administrator"])
+    operator(["Operations Lead"])
+    dev(["Workflow Developer"])
+    viewer(["Platform Observer"])
 
     subgraph boundary["FlowForge Platform Boundary"]
         dwop["FlowForge (DWOP)<br/><i>[Distributed Orchestrator]</i><br/>Validates DAG cycles, dispatches tasks,<br/>monitors workers, and runs AI diagnostics."]

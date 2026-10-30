@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useFinance } from "../../../lib/store";
+import { useOrchestrator } from "../../../lib/store";
 import { I } from "../../../lib/icons";
 import { useNavigate } from "react-router-dom";
 
@@ -15,7 +15,7 @@ export function Kpi({ label, value, delta, up }) {
 }
 
 export default function Dashboard() {
-  const { metrics, executions, workflows, workers, loadWorkflows, loadMetrics, loadExecutions, triggerWorkflow, toast } = useFinance();
+  const { metrics, executions, workflows, workers, loadWorkflows, loadMetrics, loadExecutions, triggerWorkflow, toast } = useOrchestrator();
   const nav = useNavigate();
   const [triggeringId, setTriggeringId] = useState(null);
 

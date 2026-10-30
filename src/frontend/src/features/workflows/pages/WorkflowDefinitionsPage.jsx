@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useFinance } from "../../../lib/store";
+import { useOrchestrator } from "../../../lib/store";
 import { I } from "../../../lib/icons";
 import { api } from "../../../lib/api";
 
@@ -58,7 +58,7 @@ function computeDagStages(steps = []) {
 
 export default function WorkflowDefinitionsPage() {
   const nav = useNavigate();
-  const { workflows, triggerWorkflow, createWorkflow, deleteWorkflow, loadWorkflows, can, toast } = useFinance();
+  const { workflows, triggerWorkflow, createWorkflow, deleteWorkflow, loadWorkflows, can, toast } = useOrchestrator();
 
   useEffect(() => {
     if (loadWorkflows) loadWorkflows();

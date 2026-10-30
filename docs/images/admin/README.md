@@ -341,7 +341,7 @@ Every operation has a stable route, documented parameters, Pydantic request/resp
 ### 5.1 Current repository layout
 
 ```text
-finance-manager/
+FlowForge/
 ├── src/
 │   ├── frontend/                     # React 18 + Vite SPA Console
 │   │   ├── src/

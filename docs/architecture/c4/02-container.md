@@ -4,8 +4,8 @@
 
 ```mermaid
 flowchart TB
-    operator(["👤 Administrator / Operator / Developer"])
-    reader(["👤 Platform Observer"])
+    operator(["Administrator / Operator / Developer"])
+    reader(["Platform Observer"])
     workers(["Distributed Worker Nodes<br/><i>[Compute Instances / Daemons]</i>"])
 
     subgraph platform["Distributed Workflow Orchestration Platform [Boundary]"]

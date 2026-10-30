@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { useFinance } from "../../../lib/store";
+import { useOrchestrator } from "../../../lib/store";
 import { I } from "../../../lib/icons";
 
 export default function WorkersPage() {
-  const { workers, metrics, loadWorkers } = useFinance();
+  const { workers, metrics, loadWorkers } = useOrchestrator();
 
   useEffect(() => {
     if (loadWorkers) loadWorkers();

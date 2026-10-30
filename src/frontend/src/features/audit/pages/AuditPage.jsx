@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { I } from "../../../lib/icons";
 import { initials, roleUi } from "../../../lib/format";
-import { useFinance } from "../../../lib/store";
+import { useOrchestrator } from "../../../lib/store";
 import { useAuditLogs } from "../hooks/useAuditLogs";
 
 const ACT = {
@@ -40,7 +40,7 @@ function fmtTime(iso) {
 }
 
 export default function AuditPage() {
-  const { users, userName, current } = useFinance();
+  const { users, userName, current } = useOrchestrator();
 
   const [q, setQ] = useState("");
   const [action, setAction] = useState("");

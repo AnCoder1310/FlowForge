@@ -5,7 +5,7 @@ import { api, setAccessToken } from "./api";
 
 const Ctx = createContext(null);
 
-export function FinanceProvider({ children }) {
+export function OrchestratorProvider({ children }) {
   const [current, setCurrent] = useState(() => {
     const sess = readSession();
     if (sess?.token) {
@@ -350,8 +350,8 @@ export function FinanceProvider({ children }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export function useFinance() {
+export function useOrchestrator() {
   const c = useContext(Ctx);
-  if (!c) throw new Error("useFinance must be inside FinanceProvider");
+  if (!c) throw new Error("useOrchestrator must be inside OrchestratorProvider");
   return c;
 }

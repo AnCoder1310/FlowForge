@@ -18,7 +18,7 @@
 ## 2. Cấu Trúc Toàn Bộ Dự Án
 
 ```text
-finance-manager/
+FlowForge/
 ├── .env                              # Cấu hình biến môi trường cục bộ
 ├── .env.example                      # Mẫu biến môi trường
 ├── compose.yaml                      # Docker Compose chạy PostgreSQL

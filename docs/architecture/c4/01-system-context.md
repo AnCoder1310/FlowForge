@@ -4,10 +4,10 @@
 
 ```mermaid
 flowchart LR
-    admin(["👤 Administrator"])
-    operator(["👤 Operations Lead"])
-    dev(["👤 Workflow Developer"])
-    viewer(["👤 Platform Observer"])
+    admin(["Administrator"])
+    operator(["Operations Lead"])
+    dev(["Workflow Developer"])
+    viewer(["Platform Observer"])
 
     subgraph boundary[" "]
         dwop["Distributed Workflow Orchestration Platform (DWOP)<br/><i>[Software System]</i><br/>Orchestrates distributed DAG workflows, validates cycles,<br/>dispatches tasks across isolated worker queues,<br/>automates self-healing with AI, and records audit trails."]

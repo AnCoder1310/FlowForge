@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useFinance } from "../lib/store";
+import { useOrchestrator } from "../lib/store";
 import { I } from "../lib/icons";
 import { api } from "../lib/api";
 
 export default function ExecutionsPage() {
-  const { executions, cancelExecution, can, toast } = useFinance();
+  const { executions, cancelExecution, can, toast } = useOrchestrator();
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [selectedEx, setSelectedEx] = useState(null);
   const [aiDiagnosis, setAiDiagnosis] = useState(null);

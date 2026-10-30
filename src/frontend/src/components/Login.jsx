@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { I } from "../lib/icons";
-import { useFinance } from "../lib/store";
+import { useOrchestrator } from "../lib/store";
 import { BrandIcon } from "./BrandLogo";
 
 const DEMO_ACCOUNTS = [
@@ -12,7 +12,7 @@ const DEMO_ACCOUNTS = [
 ];
 
 export default function Login() {
-  const { login, toast } = useFinance();
+  const { login, toast } = useOrchestrator();
   const nav = useNavigate();
   const [email, setEmail] = useState("admin@orchestrator.local");
   const [password, setPassword] = useState("ChangeMe123!");
