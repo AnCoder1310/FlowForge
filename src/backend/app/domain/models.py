@@ -156,6 +156,14 @@ class CreateWorkflowRequest(BaseModel):
             data["dag"] = {"steps": data["dag"]}
         if not data.get("name") or not str(data.get("name")).strip():
             data["name"] = data.get("workflow_name") or data.get("title") or "Custom-Workflow"
+        else:
+            raw_name = str(data["name"]).strip()
+            if len(raw_name) > 70:
+                if not data.get("description"):
+                    data["description"] = raw_name
+                import re
+                first_clause = re.split(r"[\n\.\?!,;]", raw_name)[0].strip()
+                data["name"] = (first_clause[:57] + "...") if len(first_clause) > 60 else (first_clause or "Custom-Workflow")
         return data
 
 class UpdateWorkflowRequest(BaseModel):

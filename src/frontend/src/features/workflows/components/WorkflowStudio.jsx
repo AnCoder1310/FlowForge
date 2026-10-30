@@ -4,7 +4,7 @@ import { useOrchestrator } from "../../../lib/store";
 import { I } from "../../../lib/icons";
 import { api } from "../../../lib/api";
 
-const NODE_TYPES = [
+export const NODE_TYPES = [
   {
     type: "HTTP_TASK",
     name: "HTTP / Webhook Task",
@@ -47,7 +47,7 @@ const NODE_TYPES = [
   },
 ];
 
-const SUPPORTED_QUEUES = [
+export const SUPPORTED_QUEUES = [
   "default",
   "compute",
   "data-io",
@@ -60,8 +60,7 @@ const SUPPORTED_QUEUES = [
   "ml-worker",
 ];
 
-
-const PRESET_TEMPLATES = [
+export const PRESET_TEMPLATES = [
   {
     id: "ecommerce",
     name: "E-Commerce Fulfillment",
@@ -274,7 +273,6 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
       setWfName(targetWorkflow.name || "New-Distributed-DAG");
       setWfDesc(targetWorkflow.description || "");
     } else {
-      // Default starter template with parallel execution
       const defaultSteps = [
         { id: "step-receive", name: "Receive Incoming Event", type: "HTTP_TASK", queue: "default", dependsOn: [], maxRetries: 2, timeoutSeconds: 30 },
         { id: "step-validate", name: "Validate & Verify Payload", type: "WORKER_TASK", queue: "compute", dependsOn: ["step-receive"], maxRetries: 3, timeoutSeconds: 60 },
@@ -527,126 +525,1029 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
 
   return (
     <div
-      className="orch-studio-root"
+      className="studio-root"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* Studio Header Bar */}
-      <header className="orch-studio-header">
-        <div className="orch-studio-header-left">
+      <style>{`
+        /* =====================================
+           WORKFLOW STUDIO - DASHBOARD DESIGN SYSTEM
+        ===================================== */
+
+        .studio-root {
+          --dash-primary: #0891b2;
+          --dash-primary-dark: #0e7490;
+          --dash-text: #172033;
+          --dash-muted: #8490a3;
+          --dash-border: #e8edf3;
+          --dash-bg: #f6f8fb;
+
+          display: flex;
+          flex-direction: column;
+          height: calc(100vh - var(--topbar-height, 68px));
+          width: 100%;
+          background: var(--dash-bg);
+          overflow: hidden;
+          user-select: none;
+          position: relative;
+          color: var(--dash-text);
+          font-family: inherit;
+        }
+
+        .studio-root * {
+          box-sizing: border-box;
+        }
+
+        /* HEADER */
+        .studio-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 20px;
+          border-bottom: 1px solid var(--dash-border);
+          background: #fff;
+          z-index: 20;
+          height: 60px;
+          gap: 16px;
+          box-shadow: 0 1px 4px rgba(15,23,42,.03);
+        }
+
+        .studio-header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+          flex: 1;
+        }
+
+        .studio-title-box {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+          flex: 1;
+        }
+
+        .studio-name-input {
+          font-family: inherit;
+          font-size: 15px;
+          font-weight: 800;
+          color: var(--dash-text);
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: 8px;
+          padding: 6px 10px;
+          transition: all 0.2s ease;
+          min-width: 240px;
+          max-width: 440px;
+        }
+
+        .studio-name-input:hover {
+          border-color: var(--dash-border);
+          background: #f8fafc;
+        }
+
+        .studio-name-input:focus {
+          border-color: var(--dash-primary);
+          background: #fff;
+          box-shadow: 0 0 0 3px rgba(8,145,178,.12);
+          outline: none;
+        }
+
+        .studio-status-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 3px 8px;
+          border-radius: 6px;
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: .3px;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .studio-status-tag.valid {
+          color: #059669;
+          background: #ecfdf5;
+          border: 1px solid #a7f3d0;
+        }
+
+        .studio-status-tag.invalid {
+          color: #dc2626;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+        }
+
+        .studio-status-tag.draft {
+          color: #64748b;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+        }
+
+        .studio-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+          flex-wrap: wrap;
+        }
+
+        /* BUTTONS */
+        .dash-btn {
+          display: inline-flex;
+          justify-content: center;
+          align-items: center;
+          gap: 7px;
+          padding: 8px 14px;
+          border: 1px solid transparent;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: .2s ease;
+          white-space: nowrap;
+        }
+
+        .dash-btn:disabled {
+          opacity: .55;
+          cursor: not-allowed;
+        }
+
+        .dash-btn-primary {
+          color: #fff;
+          background: var(--dash-primary);
+          box-shadow: 0 2px 8px rgba(8,145,178,.2);
+        }
+
+        .dash-btn-primary:hover:not(:disabled) {
+          background: var(--dash-primary-dark);
+          transform: translateY(-1px);
+        }
+
+        .dash-btn-outline {
+          color: #475569;
+          background: #fff;
+          border-color: var(--dash-border);
+        }
+
+        .dash-btn-outline:hover:not(:disabled) {
+          color: var(--dash-primary);
+          border-color: #9bd8e5;
+          background: #ecfeff;
+        }
+
+        .dash-btn-ai {
+          color: #7c3aed;
+          background: #f5f3ff;
+          border: 1px solid #ddd6fe;
+        }
+
+        .dash-btn-ai:hover:not(:disabled) {
+          background: #ede9fe;
+          border-color: #c4b5fd;
+          transform: translateY(-1px);
+        }
+
+        .dash-btn-emerald {
+          color: #fff;
+          background: #10b981;
+          box-shadow: 0 2px 8px rgba(16,185,129,.2);
+        }
+
+        .dash-btn-emerald:hover:not(:disabled) {
+          background: #059669;
+          transform: translateY(-1px);
+        }
+
+        .dash-btn-danger {
+          color: #dc2626;
+          background: #fef2f2;
+          border: 1px solid #fee2e2;
+        }
+
+        .dash-btn-danger:hover:not(:disabled) {
+          background: #fee2e2;
+        }
+
+        .dash-btn-xs {
+          padding: 6px 11px;
+          font-size: 11px;
+          border-radius: 7px;
+        }
+
+        /* 3-COLUMN WORKSPACE */
+        .studio-workspace {
+          display: flex;
+          flex: 1;
+          overflow: hidden;
+          position: relative;
+        }
+
+        /* LEFT SIDEBAR: PALETTE */
+        .studio-sidebar {
+          width: 290px;
+          flex-shrink: 0;
+          background: #fff;
+          border-right: 1px solid var(--dash-border);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          z-index: 10;
+        }
+
+        .studio-sidebar-head {
+          padding: 14px 16px 12px;
+          border-bottom: 1px solid #f0f3f7;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .studio-tabs-toggle {
+          display: flex;
+          gap: 4px;
+          padding: 3px;
+          background: #f1f5f9;
+          border-radius: 8px;
+        }
+
+        .studio-tab-btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 6px 10px;
+          border: 0;
+          border-radius: 6px;
+          background: transparent;
+          color: #64748b;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: .15s ease;
+        }
+
+        .studio-tab-btn.active {
+          color: #0e7490;
+          background: #fff;
+          box-shadow: 0 1px 3px rgba(15,23,42,.08);
+        }
+
+        .studio-search-wrap {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: #f8fafc;
+          border: 1px solid var(--dash-border);
+          border-radius: 8px;
+          padding: 6px 10px;
+          color: #94a3b8;
+        }
+
+        .studio-search-wrap:focus-within {
+          border-color: #67e8f9;
+          background: #fff;
+          box-shadow: 0 0 0 2px rgba(8,145,178,.10);
+        }
+
+        .studio-search-input {
+          border: none;
+          background: transparent;
+          color: #1e293b;
+          font-size: 12px;
+          outline: none;
+          width: 100%;
+        }
+
+        .studio-node-list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .studio-node-pill {
+          background: #fff;
+          border: 1px solid var(--dash-border);
+          border-radius: 11px;
+          padding: 12px 14px;
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          position: relative;
+        }
+
+        .studio-node-pill:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 16px rgba(15,23,42,.06);
+          border-color: #a5f3fc;
+        }
+
+        .studio-node-pill.pill-amber { border-left: 4px solid #f59e0b; }
+        .studio-node-pill.pill-blue { border-left: 4px solid #2563eb; }
+        .studio-node-pill.pill-purple { border-left: 4px solid #7c3aed; }
+        .studio-node-pill.pill-emerald { border-left: 4px solid #10b981; }
+
+        .studio-node-pill-top {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 5px;
+        }
+
+        .studio-pill-icon {
+          width: 26px;
+          height: 26px;
+          border-radius: 7px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .studio-pill-icon.amber { background: #fffbeb; color: #d97706; }
+        .studio-pill-icon.blue { background: #eff6ff; color: #2563eb; }
+        .studio-pill-icon.purple { background: #f5f3ff; color: #7c3aed; }
+        .studio-pill-icon.emerald { background: #ecfdf5; color: #059669; }
+
+        .studio-pill-name {
+          font-size: 12px;
+          font-weight: 750;
+          color: #1e293b;
+        }
+
+        .studio-pill-desc {
+          font-size: 11px;
+          color: var(--dash-muted);
+          line-height: 1.45;
+          margin: 0 0 8px 0;
+        }
+
+        .studio-pill-meta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 10px;
+          color: #64748b;
+        }
+
+        .studio-pill-meta code {
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          background: #f1f5f9;
+          padding: 2px 5px;
+          border-radius: 4px;
+          color: #334155;
+        }
+
+        .studio-sidebar-footer {
+          padding: 12px 14px;
+          background: #ecfeff;
+          border-top: 1px solid #cffafe;
+        }
+
+        .studio-hint {
+          font-size: 11px;
+          color: #0e7490;
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+          line-height: 1.45;
+        }
+
+        /* CENTER: CANVAS */
+        .studio-canvas-area {
+          flex: 1;
+          position: relative;
+          overflow: hidden;
+          background: #f8fafc;
+          cursor: grab;
+          user-select: none;
+        }
+
+        .studio-canvas-area:active {
+          cursor: grabbing;
+        }
+
+        .studio-canvas-controls {
+          position: absolute;
+          bottom: 20px;
+          left: 20px;
+          z-index: 15;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: #fff;
+          padding: 4px 8px;
+          border-radius: 10px;
+          border: 1px solid var(--dash-border);
+          box-shadow: 0 4px 16px rgba(15,23,42,.08);
+        }
+
+        .studio-zoom-val {
+          font-size: 11px;
+          font-weight: 750;
+          color: #475569;
+          min-width: 44px;
+          text-align: center;
+        }
+
+        .studio-svg-layer {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          overflow: visible;
+          z-index: 2;
+        }
+
+        .studio-edge-group {
+          pointer-events: auto;
+        }
+
+        .studio-edge-path {
+          fill: none;
+          stroke: #0891b2;
+          stroke-width: 2.2px;
+          transition: stroke 0.15s;
+        }
+
+        .studio-edge-hit {
+          fill: none;
+          stroke: transparent;
+          stroke-width: 16px;
+          cursor: pointer;
+          pointer-events: stroke;
+        }
+
+        .studio-edge-hit:hover + .studio-edge-path,
+        .studio-edge-group:hover .studio-edge-path {
+          stroke: #ef4444;
+          stroke-width: 3px;
+        }
+
+        .studio-nodes-layer {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          z-index: 5;
+        }
+
+        /* CANVAS NODE CARD */
+        .studio-node-card {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 205px;
+          background: #fff;
+          border: 1.5px solid var(--dash-border);
+          border-radius: 12px;
+          box-shadow: 0 3px 12px rgba(15,23,42,.05);
+          padding: 10px 12px;
+          cursor: move;
+          pointer-events: auto;
+          transition: box-shadow 0.15s, border-color 0.15s;
+          user-select: none;
+        }
+
+        .studio-node-card.selected {
+          border-color: #0891b2;
+          box-shadow: 0 0 0 3px rgba(8,145,178,.22), 0 8px 24px rgba(15,23,42,.08);
+        }
+
+        .studio-node-card.connecting-source {
+          border-color: #10b981;
+          box-shadow: 0 0 0 3px rgba(16,185,129,.30);
+        }
+
+        .studio-node-card.card-amber { border-left: 4px solid #f59e0b; }
+        .studio-node-card.card-blue { border-left: 4px solid #2563eb; }
+        .studio-node-card.card-purple { border-left: 4px solid #7c3aed; }
+        .studio-node-card.card-emerald { border-left: 4px solid #10b981; }
+
+        .studio-handle {
+          position: absolute;
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: #ffffff;
+          top: calc(50% - 7px);
+          cursor: crosshair;
+          transition: transform 0.15s, background-color 0.15s;
+          z-index: 10;
+        }
+
+        .studio-handle.handle-in {
+          left: -8px;
+          border: 2.5px solid #2563eb;
+        }
+
+        .studio-handle.handle-out {
+          right: -8px;
+          border: 2.5px solid #10b981;
+        }
+
+        .studio-handle:hover {
+          transform: scale(1.35);
+          background: #10b981;
+        }
+
+        .studio-handle.active {
+          background: #10b981;
+          transform: scale(1.3);
+        }
+
+        .studio-node-card-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 6px;
+        }
+
+        .studio-node-badge {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+          color: #64748b;
+        }
+
+        .studio-node-card-body {
+          margin-bottom: 8px;
+        }
+
+        .studio-node-name {
+          display: block;
+          font-size: 12px;
+          font-weight: 750;
+          color: #1e293b;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          line-height: 1.35;
+        }
+
+        .studio-node-id {
+          display: block;
+          font-size: 10px;
+          color: #94a3b8;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          margin-top: 2px;
+        }
+
+        .studio-node-card-foot {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 10px;
+          color: #64748b;
+          border-top: 1px solid #f0f3f7;
+          padding-top: 6px;
+        }
+
+        .studio-queue-pill {
+          background: #f1f5f9;
+          padding: 2px 5px;
+          border-radius: 4px;
+          font-weight: 600;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          color: #475569;
+        }
+
+        .studio-retry-pill {
+          color: #94a3b8;
+          font-weight: 600;
+        }
+
+        /* RIGHT: CONFIG PANEL */
+        .studio-config-panel {
+          width: 330px;
+          flex-shrink: 0;
+          background: #fff;
+          border-left: 1px solid var(--dash-border);
+          overflow-y: auto;
+          z-index: 10;
+          padding: 18px 20px;
+        }
+
+        .studio-config-body {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .studio-config-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          padding-bottom: 12px;
+          border-bottom: 1px solid #f0f3f7;
+        }
+
+        .studio-config-title {
+          font-size: 14px;
+          font-weight: 800;
+          color: #1e293b;
+          margin: 0;
+        }
+
+        .studio-config-sub {
+          font-size: 11px;
+          color: var(--dash-muted);
+          margin-top: 2px;
+        }
+
+        .studio-form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .studio-form-label {
+          color: #334155;
+          font-size: 11px;
+          font-weight: 750;
+        }
+
+        .studio-input, .studio-select {
+          width: 100%;
+          height: 38px;
+          padding: 0 12px;
+          border: 1px solid var(--dash-border);
+          border-radius: 8px;
+          background: #fff;
+          color: #1e293b;
+          font-size: 12px;
+          outline: none;
+          transition: border-color .15s ease;
+        }
+
+        .studio-input:focus, .studio-select:focus {
+          border-color: var(--dash-primary);
+          box-shadow: 0 0 0 3px rgba(8,145,178,.12);
+        }
+
+        .studio-input.disabled {
+          background: #f8fafc;
+          color: #64748b;
+          cursor: not-allowed;
+        }
+
+        .studio-form-row {
+          display: flex;
+          gap: 10px;
+        }
+
+        .studio-deps-list {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          max-height: 180px;
+          overflow-y: auto;
+          padding: 8px;
+          background: #f8fafc;
+          border: 1px solid var(--dash-border);
+          border-radius: 8px;
+        }
+
+        .studio-dep-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 11px;
+          color: #334155;
+          cursor: pointer;
+        }
+
+        .studio-dep-item code {
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          color: #64748b;
+          font-size: 10px;
+        }
+
+        .studio-config-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 60px 20px;
+          text-align: center;
+          color: #94a3b8;
+        }
+
+        .studio-config-empty h4 {
+          margin: 12px 0 6px;
+          font-size: 14px;
+          font-weight: 750;
+          color: #475569;
+        }
+
+        .studio-config-empty p {
+          margin: 0;
+          font-size: 12px;
+          line-height: 1.5;
+        }
+
+        .dash-icon-btn {
+          width: 30px;
+          height: 30px;
+          display: grid;
+          place-items: center;
+          color: #64748b;
+          background: #fff;
+          border: 1px solid var(--dash-border);
+          border-radius: 8px;
+          cursor: pointer;
+          transition: .18s ease;
+        }
+
+        .dash-icon-btn:hover {
+          color: var(--dash-primary);
+          border-color: #a5f3fc;
+          background: #ecfeff;
+        }
+
+        .dash-icon-btn.xs {
+          width: 24px;
+          height: 24px;
+        }
+
+        /* MODALS (MATCHES DASHBOARD / WORKFLOWS) */
+        .dash-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          background: rgba(15,23,42,.52);
+          backdrop-filter: blur(4px);
+        }
+
+        .dash-modal {
+          width: min(100%, 640px);
+          max-height: 90vh;
+          overflow: auto;
+          background: #fff;
+          border: 1px solid var(--dash-border);
+          border-radius: 18px;
+          box-shadow: 0 24px 70px rgba(15,23,42,.25);
+        }
+
+        .dash-modal-lg {
+          width: min(100%, 860px);
+        }
+
+        .dash-modal-head {
+          position: sticky;
+          top: 0;
+          z-index: 2;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          padding: 20px 24px;
+          background: #fff;
+          border-bottom: 1px solid var(--dash-border);
+        }
+
+        .dash-modal-title-group {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .dash-modal-icon-badge {
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          border-radius: 12px;
+          flex-shrink: 0;
+        }
+
+        .dash-modal-icon-badge.blue { background: #eff6ff; color: #2563eb; }
+        .dash-modal-icon-badge.purple { background: #f5f3ff; color: #7c3aed; }
+
+        .dash-modal-title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 800;
+          line-height: 1.35;
+          color: var(--dash-text);
+        }
+
+        .dash-modal-subtitle {
+          display: block;
+          margin-top: 3px;
+          color: var(--dash-muted);
+          font-size: 11px;
+        }
+
+        .dash-modal-body {
+          padding: 22px 24px;
+        }
+
+        .dash-modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+          flex-wrap: wrap;
+          padding: 16px 24px;
+          background: #f8fafc;
+          border-top: 1px solid var(--dash-border);
+        }
+
+        .dash-code-block {
+          padding: 14px 16px;
+          background: #0f172a;
+          color: #f8fafc;
+          border-radius: 10px;
+          font-size: 12px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          line-height: 1.5;
+          overflow-x: auto;
+          max-height: 400px;
+        }
+
+        .dash-textarea {
+          width: 100%;
+          padding: 12px 14px;
+          border: 1px solid var(--dash-border);
+          border-radius: 10px;
+          font-size: 13px;
+          font-family: inherit;
+          color: #1e293b;
+          resize: vertical;
+          outline: none;
+          line-height: 1.5;
+        }
+
+        .dash-textarea:focus {
+          border-color: var(--dash-primary);
+          box-shadow: 0 0 0 3px rgba(8,145,178,.12);
+        }
+      `}</style>
+
+      {/* =====================================
+          STUDIO HEADER BAR
+      ===================================== */}
+      <header className="studio-header">
+        <div className="studio-header-left">
           <button
             type="button"
-            className="orch-btn orch-btn-ghost orch-btn-sm"
+            className="dash-btn dash-btn-outline dash-btn-xs"
             onClick={onClose ? onClose : () => nav("/workflows")}
-            title="Quay lại danh sách"
+            title="Quay lại danh sách Workflow"
           >
-            <I name="arrow-right" size={14} style={{ transform: "rotate(180deg)" }} />
+            <I name="arrow-right" size={13} style={{ transform: "rotate(180deg)" }} />
             <span>Quay lại</span>
           </button>
-          <div className="orch-studio-title-box">
+
+          <div className="studio-title-box">
             <input
               type="text"
               value={wfName}
               onChange={(e) => setWfName(e.target.value)}
-              className="orch-studio-name-input"
+              className="studio-name-input"
               placeholder="Tên Workflow..."
             />
-            <span className={`orch-tag ${validationResult?.valid ? "success" : validationResult?.valid === false ? "danger" : "neutral"}`}>
-              {validationResult?.valid ? "DAG Hợp Lệ" : validationResult?.valid === false ? "Lỗi Chu Trình" : "Bản Thảo (Draft)"}
+
+            <span
+              className={`studio-status-tag ${
+                validationResult?.valid
+                  ? "valid"
+                  : validationResult?.valid === false
+                  ? "invalid"
+                  : "draft"
+              }`}
+            >
+              {validationResult?.valid
+                ? "DAG Hợp Lệ"
+                : validationResult?.valid === false
+                ? "Lỗi Chu Trình"
+                : "Bản Thảo (Draft)"}
             </span>
           </div>
         </div>
 
-        <div className="orch-studio-header-actions">
+        <div className="studio-header-actions">
           <button
             type="button"
-            className="orch-btn orch-btn-ai orch-btn-sm"
+            className="dash-btn dash-btn-ai dash-btn-xs"
             onClick={() => setShowAiModal(true)}
           >
-            <I name="sparkles" size={14} /> <span>AI Prompt-to-DAG</span>
+            <I name="sparkles" size={13} />
+            <span>AI Prompt-to-DAG</span>
           </button>
+
           <button
             type="button"
-            className="orch-btn orch-btn-secondary orch-btn-sm"
+            className="dash-btn dash-btn-outline dash-btn-xs"
             onClick={handleAutoLayout}
             title="Căn chỉnh các nhánh tự động"
           >
-            <I name="layers" size={14} /> <span>Auto Layout</span>
+            <I name="layers" size={13} />
+            <span>Auto Layout</span>
           </button>
+
           <button
             type="button"
-            className="orch-btn orch-btn-secondary orch-btn-sm"
+            className="dash-btn dash-btn-outline dash-btn-xs"
             onClick={handleValidate}
             title="Kiểm tra vòng lặp & dependency"
           >
-            <I name="shield-check" size={14} /> <span>Kiểm Tra DAG</span>
+            <I name="shield-check" size={13} />
+            <span>Kiểm Tra DAG</span>
           </button>
+
           <button
             type="button"
-            className="orch-btn orch-btn-secondary orch-btn-sm"
+            className="dash-btn dash-btn-outline dash-btn-xs"
             onClick={() => setShowJsonPreview(!showJsonPreview)}
             title="Xem mã JSON"
           >
-            <I name="file-code" size={14} /> <span>Preview JSON</span>
+            <I name="file-code" size={13} />
+            <span>Preview JSON</span>
           </button>
+
           <button
             type="button"
-            className="orch-btn orch-btn-primary orch-btn-sm"
+            className="dash-btn dash-btn-primary dash-btn-xs"
             onClick={handleSave}
           >
-            <I name="save" size={14} /> <span>Lưu Workflow</span>
+            <I name="save" size={13} />
+            <span>Lưu Workflow</span>
           </button>
+
           <button
             type="button"
-            className="orch-btn orch-btn-emerald orch-btn-sm"
+            className="dash-btn dash-btn-emerald dash-btn-xs"
             onClick={handleRunWorkflow}
-            style={{ background: "var(--orch-accent-emerald, #10b981)", color: "#fff" }}
           >
-            <I name="play" size={14} /> <span>Kích Hoạt (Run)</span>
+            <I name="play" size={13} />
+            <span>Kích Hoạt (Run)</span>
           </button>
         </div>
       </header>
 
-      {/* Main Studio Body: 3-Column Layout */}
-      <div className="orch-studio-workspace">
-        {/* A. Left Sidebar: Node Library */}
-        <aside className="orch-studio-sidebar">
-          <div className="orch-studio-sidebar-head">
-            <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+      {/* =====================================
+          3-COLUMN WORKSPACE
+      ===================================== */}
+      <div className="studio-workspace">
+        {/* A. Left Sidebar: Node & Presets Palette */}
+        <aside className="studio-sidebar">
+          <div className="studio-sidebar-head">
+            <div className="studio-tabs-toggle">
               <button
                 type="button"
-                className={`orch-btn orch-btn-sm ${sidebarTab === "tasks" ? "orch-btn-primary" : "orch-btn-secondary"}`}
-                style={{ flex: 1, padding: "5px 8px", fontSize: "0.75rem" }}
+                className={`studio-tab-btn ${sidebarTab === "tasks" ? "active" : ""}`}
                 onClick={() => setSidebarTab("tasks")}
               >
-                <I name="cpu" size={13} /> Tác Vụ
+                <I name="cpu" size={13} />
+                <span>Tác Vụ</span>
               </button>
+
               <button
                 type="button"
-                className={`orch-btn orch-btn-sm ${sidebarTab === "presets" ? "orch-btn-primary" : "orch-btn-secondary"}`}
-                style={{ flex: 1, padding: "5px 8px", fontSize: "0.75rem" }}
+                className={`studio-tab-btn ${sidebarTab === "presets" ? "active" : ""}`}
                 onClick={() => setSidebarTab("presets")}
               >
-                <I name="layers" size={13} /> Mẫu DAG
+                <I name="layers" size={13} />
+                <span>Mẫu DAG</span>
               </button>
             </div>
+
             {sidebarTab === "tasks" ? (
-              <div className="orch-studio-search-wrap">
+              <div className="studio-search-wrap">
                 <I name="search" size={13} />
                 <input
                   type="text"
                   placeholder="Tìm tác vụ..."
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  className="orch-studio-search-input"
+                  className="studio-search-input"
                 />
               </div>
             ) : (
-              <p className="orch-studio-sidebar-sub" style={{ margin: 0 }}>Chọn mẫu để nạp nhanh đồ thị nhiều nhánh</p>
+              <p style={{ margin: 0, fontSize: "11px", color: "var(--dash-muted)" }}>
+                Chọn mẫu để nạp nhanh đồ thị nhiều nhánh
+              </p>
             )}
           </div>
 
-          <div className="orch-studio-node-list">
+          <div className="studio-node-list">
             {sidebarTab === "tasks" ? (
               NODE_TYPES.filter(
                 (t) =>
@@ -655,18 +1556,18 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
               ).map((t) => (
                 <div
                   key={t.type}
-                  className={`orch-studio-node-pill pill-${t.color}`}
+                  className={`studio-node-pill pill-${t.color}`}
                   onClick={() => handleAddNode(t)}
                   title="Nhấp để thêm tác vụ này vào Canvas"
                 >
-                  <div className="orch-studio-node-pill-top">
-                    <span className={`orch-studio-pill-icon ${t.color}`}>
+                  <div className="studio-node-pill-top">
+                    <span className={`studio-pill-icon ${t.color}`}>
                       <I name={t.icon} size={15} />
                     </span>
-                    <strong className="orch-studio-pill-name">{t.name}</strong>
+                    <strong className="studio-pill-name">{t.name}</strong>
                   </div>
-                  <p className="orch-studio-pill-desc">{t.desc}</p>
-                  <div className="orch-studio-pill-meta">
+                  <p className="studio-pill-desc">{t.desc}</p>
+                  <div className="studio-pill-meta">
                     <span>Queue: <code>{t.queue}</code></span>
                     <span>Timeout: {t.defaultTimeout}s</span>
                   </div>
@@ -676,69 +1577,85 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
               PRESET_TEMPLATES.map((p) => (
                 <div
                   key={p.id}
-                  className="orch-studio-node-pill pill-purple"
+                  className="studio-node-pill pill-purple"
                   onClick={() => handleLoadPreset(p)}
                   title="Nhấp để nạp mẫu này lên Canvas"
                 >
-                  <div className="orch-studio-node-pill-top" style={{ justifyContent: "space-between" }}>
-                    <strong className="orch-studio-pill-name">{p.name}</strong>
-                    <span className="orch-tag purple" style={{ fontSize: "0.62rem", padding: "1px 5px" }}>{p.badge}</span>
+                  <div className="studio-node-pill-top" style={{ justifyContent: "space-between" }}>
+                    <strong className="studio-pill-name">{p.name}</strong>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: "750",
+                        color: "#7c3aed",
+                        background: "#f5f3ff",
+                        padding: "2px 6px",
+                        borderRadius: "5px",
+                      }}
+                    >
+                      {p.badge}
+                    </span>
                   </div>
-                  <p className="orch-studio-pill-desc">{p.desc}</p>
-                  <div className="orch-studio-pill-meta">
+                  <p className="studio-pill-desc">{p.desc}</p>
+                  <div className="studio-pill-meta">
                     <span>Số bước: <strong>{p.steps.length}</strong></span>
-                    <span style={{ color: "var(--primary)", fontWeight: 600 }}>Tải lên Canvas →</span>
+                    <span style={{ color: "var(--dash-primary)", fontWeight: "750" }}>
+                      Tải lên Canvas →
+                    </span>
                   </div>
                 </div>
               ))
             )}
           </div>
 
-          <div className="orch-studio-sidebar-footer">
-            <span className="orch-studio-hint">
-              <I name="info" size={12} /> <strong>Cách nối dây:</strong> Nhấp vào chấm tròn màu xanh (bên phải) của Node trước, rồi nhấp vào chấm tròn (bên trái) của Node sau.
+          <div className="studio-sidebar-footer">
+            <span className="studio-hint">
+              <I name="info" size={13} style={{ flexShrink: 0, marginTop: "2px" }} />
+              <span>
+                <strong>Cách nối dây:</strong> Nhấp vào chấm tròn màu xanh (bên phải) của Node trước, rồi nhấp vào chấm tròn (bên trái) của Node sau.
+              </span>
             </span>
           </div>
         </aside>
 
         {/* B. Center: Interactive Canvas */}
         <main
-          className="orch-studio-canvas-area"
+          className="studio-canvas-area"
           ref={canvasRef}
           onMouseDown={handleCanvasMouseDown}
         >
-          {/* Canvas Controls overlay */}
-          <div className="orch-studio-canvas-controls">
+          {/* Canvas Controls Overlay */}
+          <div className="studio-canvas-controls">
             <button
               type="button"
-              className="orch-icon-btn sm"
+              className="dash-icon-btn xs"
               onClick={() => setZoom((z) => Math.min(1.8, z + 0.15))}
               title="Phóng to"
             >
-              <I name="plus" size={14} />
+              <I name="plus" size={13} />
             </button>
             <button
               type="button"
-              className="orch-icon-btn sm"
+              className="dash-icon-btn xs"
               onClick={() => setZoom((z) => Math.max(0.5, z - 0.15))}
               title="Thu nhỏ"
             >
-              <I name="minus" size={14} />
+              <I name="minus" size={13} />
             </button>
             <button
               type="button"
-              className="orch-icon-btn sm"
+              className="dash-icon-btn xs"
               onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
               title="Đặt lại góc nhìn"
             >
-              <I name="rotate-ccw" size={14} />
+              <I name="rotate-ccw" size={13} />
             </button>
-            <span className="orch-studio-zoom-val">{Math.round(zoom * 100)}%</span>
+            <span className="studio-zoom-val">{Math.round(zoom * 100)}%</span>
           </div>
 
           {/* SVG Canvas for Grid & Edges */}
           <svg
-            className="orch-studio-svg-layer"
+            className="studio-svg-layer"
             style={{
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: "0 0",
@@ -746,7 +1663,7 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
           >
             <defs>
               <pattern id="studio-grid" width="24" height="24" patternUnits="userSpaceOnUse">
-                <circle cx="2" cy="2" r="1" fill="var(--orch-grid-dot, rgba(148, 163, 184, 0.25))" />
+                <circle cx="2" cy="2" r="1" fill="#cbd5e1" opacity="0.6" />
               </pattern>
               <marker
                 id="dag-arrow"
@@ -757,7 +1674,7 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
                 markerHeight="6"
                 orient="auto-start-reverse"
               >
-                <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--orch-accent-primary, #6366f1)" />
+                <path d="M 0 1 L 9 5 L 0 9 z" fill="#0891b2" />
               </marker>
             </defs>
 
@@ -770,25 +1687,23 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
               const dstNode = nodes.find((n) => n.id === edge.to);
               if (!srcNode || !dstNode) return null;
 
-              // Node dimensions approx 200 x 85
-              const x1 = srcNode.x + 200;
-              const y1 = srcNode.y + 42;
+              const x1 = srcNode.x + 205;
+              const y1 = srcNode.y + 44;
               const x2 = dstNode.x;
-              const y2 = dstNode.y + 42;
+              const y2 = dstNode.y + 44;
               const dx = Math.max(40, (x2 - x1) * 0.5);
               const pathD = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 
               return (
-                <g key={edge.id} className="orch-studio-edge-group">
+                <g key={edge.id} className="studio-edge-group">
                   <path
                     d={pathD}
-                    className="orch-studio-edge-path"
+                    className="studio-edge-path"
                     markerEnd="url(#dag-arrow)"
                   />
-                  {/* Invisible wide path for easy clicking to delete edge */}
                   <path
                     d={pathD}
-                    className="orch-studio-edge-hit"
+                    className="studio-edge-hit"
                     onClick={() => handleDeleteEdge(edge.id)}
                   >
                     <title>Nhấp để xóa liên kết phụ thuộc này</title>
@@ -800,7 +1715,7 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
 
           {/* Render Nodes as Interactive DOM Elements */}
           <div
-            className="orch-studio-nodes-layer"
+            className="studio-nodes-layer"
             style={{
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: "0 0",
@@ -814,48 +1729,48 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
               return (
                 <div
                   key={node.id}
-                  className={`orch-studio-node-card card-${nodeMeta.color} ${isSelected ? "selected" : ""} ${isConnecting ? "connecting-source" : ""}`}
+                  className={`studio-node-card card-${nodeMeta.color} ${isSelected ? "selected" : ""} ${isConnecting ? "connecting-source" : ""}`}
                   style={{ transform: `translate(${node.x}px, ${node.y}px)` }}
                   onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                 >
                   {/* Left Target Handle (Input) */}
                   <div
-                    className="orch-studio-handle handle-in"
+                    className="studio-handle handle-in"
                     onClick={(e) => handleHandleClick(e, node.id, false)}
                     title="Cổng vào: Nhấp để nhận dependency"
                   />
 
                   {/* Node Header */}
-                  <div className="orch-studio-node-card-head">
-                    <div className="orch-studio-node-badge">
+                  <div className="studio-node-card-head">
+                    <div className="studio-node-badge">
                       <I name={nodeMeta.icon} size={13} />
                       <span>{node.type.replace("_TASK", "")}</span>
                     </div>
                     <button
                       type="button"
-                      className="orch-icon-btn xs"
+                      className="dash-icon-btn xs"
                       onClick={(e) => { e.stopPropagation(); handleDeleteNode(node.id); }}
                       title="Xóa node này"
                     >
-                      <I name="x" size={12} />
+                      <I name="x" size={11} />
                     </button>
                   </div>
 
                   {/* Node Body */}
-                  <div className="orch-studio-node-card-body">
-                    <strong className="orch-studio-node-name">{node.name}</strong>
-                    <code className="orch-studio-node-id">{node.id}</code>
+                  <div className="studio-node-card-body">
+                    <strong className="studio-node-name">{node.name}</strong>
+                    <code className="studio-node-id">{node.id}</code>
                   </div>
 
                   {/* Node Footer */}
-                  <div className="orch-studio-node-card-foot">
-                    <span className="orch-queue-pill">Q: {node.queue}</span>
-                    <span className="orch-retry-pill">{node.maxRetries}x / {node.timeoutSeconds}s</span>
+                  <div className="studio-node-card-foot">
+                    <span className="studio-queue-pill">Q: {node.queue}</span>
+                    <span className="studio-retry-pill">{node.maxRetries}x / {node.timeoutSeconds}s</span>
                   </div>
 
                   {/* Right Source Handle (Output) */}
                   <div
-                    className={`orch-studio-handle handle-out ${isConnecting ? "active" : ""}`}
+                    className={`studio-handle handle-out ${isConnecting ? "active" : ""}`}
                     onClick={(e) => handleHandleClick(e, node.id, true)}
                     title="Cổng ra: Nhấp để kéo kết nối tới node sau"
                   />
@@ -866,25 +1781,25 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
         </main>
 
         {/* C. Right: Configuration Panel */}
-        <aside className="orch-studio-config-panel">
+        <aside className="studio-config-panel">
           {selectedNode ? (
-            <div className="orch-studio-config-body">
-              <div className="orch-studio-config-header">
+            <div className="studio-config-body">
+              <div className="studio-config-header">
                 <div>
-                  <h4 className="orch-studio-config-title">Cấu Hình Tác Vụ</h4>
-                  <span className="orch-studio-config-sub">Chỉnh sửa thông số của node đang chọn</span>
+                  <h4 className="studio-config-title">Cấu Hình Tác Vụ</h4>
+                  <span className="studio-config-sub">Chỉnh sửa thông số của node đang chọn</span>
                 </div>
                 <button
                   type="button"
-                  className="orch-btn orch-btn-danger orch-btn-xs"
+                  className="dash-btn dash-btn-danger dash-btn-xs"
                   onClick={() => handleDeleteNode(selectedNode.id)}
                 >
-                  <I name="trash-2" size={13} /> Xóa
+                  <I name="trash-2" size={12} /> Xóa
                 </button>
               </div>
 
-              <div className="orch-form-group">
-                <label className="orch-form-label">Tên Bước (Step Name):</label>
+              <div className="studio-form-group">
+                <label className="studio-form-label">Tên Bước (Step Name):</label>
                 <input
                   type="text"
                   value={selectedNode.name}
@@ -892,30 +1807,30 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
                     const val = e.target.value;
                     setNodes((prev) => prev.map((n) => (n.id === selectedNode.id ? { ...n, name: val } : n)));
                   }}
-                  className="orch-input"
+                  className="studio-input"
                 />
               </div>
 
-              <div className="orch-form-group">
-                <label className="orch-form-label">ID Bước (Unique Step ID):</label>
+              <div className="studio-form-group">
+                <label className="studio-form-label">ID Bước (Unique Step ID):</label>
                 <input
                   type="text"
                   value={selectedNode.id}
                   disabled
-                  className="orch-input disabled"
+                  className="studio-input disabled"
                   title="ID được tạo duy nhất cho DAG"
                 />
               </div>
 
-              <div className="orch-form-group">
-                <label className="orch-form-label">Loại Tác Vụ (Task Type):</label>
+              <div className="studio-form-group">
+                <label className="studio-form-label">Loại Tác Vụ (Task Type):</label>
                 <select
                   value={selectedNode.type}
                   onChange={(e) => {
                     const val = e.target.value;
                     setNodes((prev) => prev.map((n) => (n.id === selectedNode.id ? { ...n, type: val } : n)));
                   }}
-                  className="orch-select"
+                  className="studio-select"
                 >
                   {NODE_TYPES.map((t) => (
                     <option key={t.type} value={t.type}>
@@ -925,15 +1840,15 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
                 </select>
               </div>
 
-              <div className="orch-form-group">
-                <label className="orch-form-label">Hàng Đợi Worker (Queue):</label>
+              <div className="studio-form-group">
+                <label className="studio-form-label">Hàng Đợi Worker (Queue):</label>
                 <select
                   value={selectedNode.queue}
                   onChange={(e) => {
                     const val = e.target.value;
                     setNodes((prev) => prev.map((n) => (n.id === selectedNode.id ? { ...n, queue: val } : n)));
                   }}
-                  className="orch-select"
+                  className="studio-select"
                 >
                   {SUPPORTED_QUEUES.map((q) => (
                     <option key={q} value={q}>
@@ -943,9 +1858,9 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
                 </select>
               </div>
 
-              <div className="orch-form-row">
-                <div className="orch-form-group" style={{ flex: 1 }}>
-                  <label className="orch-form-label">Max Retries:</label>
+              <div className="studio-form-row">
+                <div className="studio-form-group" style={{ flex: 1 }}>
+                  <label className="studio-form-label">Max Retries:</label>
                   <input
                     type="number"
                     min={1}
@@ -955,11 +1870,12 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
                       const val = parseInt(e.target.value, 10) || 1;
                       setNodes((prev) => prev.map((n) => (n.id === selectedNode.id ? { ...n, maxRetries: val } : n)));
                     }}
-                    className="orch-input"
+                    className="studio-input"
                   />
                 </div>
-                <div className="orch-form-group" style={{ flex: 1 }}>
-                  <label className="orch-form-label">Timeout (giây):</label>
+
+                <div className="studio-form-group" style={{ flex: 1 }}>
+                  <label className="studio-form-label">Timeout (giây):</label>
                   <input
                     type="number"
                     min={15}
@@ -970,23 +1886,23 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
                       const val = parseInt(e.target.value, 10) || 30;
                       setNodes((prev) => prev.map((n) => (n.id === selectedNode.id ? { ...n, timeoutSeconds: val } : n)));
                     }}
-                    className="orch-input"
+                    className="studio-input"
                   />
                 </div>
               </div>
 
               {/* Dependencies Checklist */}
-              <div className="orch-form-group" style={{ marginTop: "14px" }}>
-                <label className="orch-form-label">
+              <div className="studio-form-group">
+                <label className="studio-form-label">
                   Phụ thuộc bước nào (Depends On):
                 </label>
-                <div className="orch-deps-checkbox-list">
+                <div className="studio-deps-list">
                   {nodes
                     .filter((other) => other.id !== selectedNode.id)
                     .map((other) => {
                       const hasEdge = edges.some((e) => e.from === other.id && e.to === selectedNode.id);
                       return (
-                        <label key={other.id} className="orch-dep-checkbox-item">
+                        <label key={other.id} className="studio-dep-item">
                           <input
                             type="checkbox"
                             checked={hasEdge}
@@ -1008,12 +1924,16 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
                         </label>
                       );
                     })}
-                  {nodes.length <= 1 && <span className="orch-form-hint">Không có node khác để làm dependency.</span>}
+                  {nodes.length <= 1 && (
+                    <span style={{ fontSize: "11px", color: "var(--dash-muted)" }}>
+                      Không có node khác để làm dependency.
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="orch-studio-config-empty">
+            <div className="studio-config-empty">
               <I name="mouse-pointer" size={32} />
               <h4>Chưa chọn tác vụ nào</h4>
               <p>Nhấp vào bất kỳ Node nào trên Canvas để chỉnh sửa tên, loại task, queue và thời gian chờ.</p>
@@ -1024,32 +1944,48 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
 
       {/* Modal: Preview JSON */}
       {showJsonPreview && (
-        <div className="orch-modal-backdrop" onClick={() => setShowJsonPreview(false)}>
-          <div className="orch-modal orch-modal-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="orch-modal-head">
-              <div className="orch-modal-title-group">
-                <div className="orch-modal-icon-badge blue"><I name="file-code" size={18} /></div>
+        <div className="dash-modal-backdrop" onClick={() => setShowJsonPreview(false)}>
+          <div className="dash-modal dash-modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="dash-modal-head">
+              <div className="dash-modal-title-group">
+                <div className="dash-modal-icon-badge blue">
+                  <I name="file-code" size={18} />
+                </div>
                 <div>
-                  <h3 className="orch-modal-title">FlowForge DAG JSON Definition</h3>
-                  <span className="orch-modal-subtitle">Biên dịch hai chiều tự động từ đồ thị Canvas sang Schema backend</span>
+                  <h3 className="dash-modal-title">FlowForge DAG JSON Definition</h3>
+                  <span className="dash-modal-subtitle">
+                    Biên dịch hai chiều tự động từ đồ thị Canvas sang Schema backend
+                  </span>
                 </div>
               </div>
-              <button className="orch-icon-btn" onClick={() => setShowJsonPreview(false)}><I name="x" size={18} /></button>
-            </div>
-            <div className="orch-modal-body">
-              <pre className="orch-code-block" style={{ maxHeight: "400px" }}>{currentDagJson}</pre>
-            </div>
-            <div className="orch-modal-actions">
-              <button type="button" className="orch-btn orch-btn-secondary" onClick={() => setShowJsonPreview(false)}>Đóng</button>
               <button
                 type="button"
-                className="orch-btn orch-btn-primary"
+                className="dash-icon-btn"
+                onClick={() => setShowJsonPreview(false)}
+              >
+                <I name="x" size={16} />
+              </button>
+            </div>
+            <div className="dash-modal-body">
+              <pre className="dash-code-block">{currentDagJson}</pre>
+            </div>
+            <div className="dash-modal-actions">
+              <button
+                type="button"
+                className="dash-btn dash-btn-outline"
+                onClick={() => setShowJsonPreview(false)}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                className="dash-btn dash-btn-primary"
                 onClick={() => {
                   navigator.clipboard.writeText(currentDagJson);
                   toast("Đã copy JSON vào Clipboard!", "success");
                 }}
               >
-                <I name="clipboard" size={14} /> Copy JSON
+                <I name="copy" size={13} /> Copy JSON
               </button>
             </div>
           </div>
@@ -1058,32 +1994,54 @@ export default function WorkflowStudio({ initialWorkflow = null, onClose = null 
 
       {/* Modal: AI Prompt-to-DAG */}
       {showAiModal && (
-        <div className="orch-modal-backdrop" onClick={() => setShowAiModal(false)}>
-          <div className="orch-modal" style={{ maxWidth: "620px" }} onClick={(e) => e.stopPropagation()}>
-            <div className="orch-modal-head">
-              <div className="orch-modal-title-group">
-                <div className="orch-modal-icon-badge purple"><I name="sparkles" size={18} /></div>
+        <div className="dash-modal-backdrop" onClick={() => setShowAiModal(false)}>
+          <div className="dash-modal" style={{ maxWidth: "620px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="dash-modal-head">
+              <div className="dash-modal-title-group">
+                <div className="dash-modal-icon-badge purple">
+                  <I name="sparkles" size={18} />
+                </div>
                 <div>
-                  <h3 className="orch-modal-title">AI Prompt-to-DAG Generator</h3>
-                  <span className="orch-modal-subtitle">9Router AI sẽ tự động phân rã nghiệp vụ và vẽ trực tiếp lên Canvas</span>
+                  <h3 className="dash-modal-title">AI Prompt-to-DAG Generator</h3>
+                  <span className="dash-modal-subtitle">
+                    9Router AI sẽ tự động phân rã nghiệp vụ và vẽ trực tiếp lên Canvas
+                  </span>
                 </div>
               </div>
-              <button className="orch-icon-btn" onClick={() => setShowAiModal(false)}><I name="x" size={18} /></button>
+              <button
+                type="button"
+                className="dash-icon-btn"
+                onClick={() => setShowAiModal(false)}
+              >
+                <I name="x" size={16} />
+              </button>
             </div>
-            <form onSubmit={handleAiGenerateToCanvas} className="orch-modal-body">
-              <label className="orch-form-label">Mô tả quy trình cần tạo:</label>
-              <textarea
-                rows={4}
-                required
-                placeholder="Ví dụ: Quy trình AI tự động thẩm định hồ sơ vay: OCR giấy tờ và tra cứu tín dụng song song, sau đó chấm điểm rủi ro và gửi thông báo..."
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                className="orch-textarea"
-              />
-              <div className="orch-modal-actions" style={{ marginTop: "16px" }}>
-                <button type="button" className="orch-btn orch-btn-secondary" onClick={() => setShowAiModal(false)}>Hủy</button>
-                <button type="submit" className="orch-btn orch-btn-ai" disabled={aiLoading}>
-                  <I name="sparkles" size={15} />
+            <form onSubmit={handleAiGenerateToCanvas}>
+              <div className="dash-modal-body">
+                <label className="studio-form-label">Mô tả quy trình cần tạo:</label>
+                <textarea
+                  rows={4}
+                  required
+                  placeholder="Ví dụ: Quy trình AI tự động thẩm định hồ sơ vay: OCR giấy tờ và tra cứu tín dụng song song, sau đó chấm điểm rủi ro và gửi thông báo..."
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  className="dash-textarea"
+                />
+              </div>
+              <div className="dash-modal-actions">
+                <button
+                  type="button"
+                  className="dash-btn dash-btn-outline"
+                  onClick={() => setShowAiModal(false)}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="dash-btn dash-btn-ai"
+                  disabled={aiLoading}
+                >
+                  <I name="sparkles" size={14} />
                   <span>{aiLoading ? "9Router đang thiết kế DAG..." : "Sinh & Đưa Lên Canvas"}</span>
                 </button>
               </div>
