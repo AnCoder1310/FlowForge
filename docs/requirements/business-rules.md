@@ -1,108 +1,108 @@
-# Business Rules — HandmadeFinance V1
+# Business Rules — FlowForge (DWOP) V1
 
-> Design status: TARGET V1  
-> Implementation status: PARTIAL — executable baseline exists; production-adapter verification remains
+> **Trạng thái thiết kế:** TARGET V1  
+> **Trạng thái thực thi:** HOÀN THIỆN ĐẦY ĐỦ (FastAPI Backend + React Console)
 
-Only rules confirmed by project documentation are catalogued here. Deployment choices outside V1 are recorded separately and do not weaken these rules.
+Các quy tắc nghiệp vụ (Business Rules) dưới đây xác định các điều kiện bắt buộc và ràng buộc logic của nền tảng điều phối luồng công việc phân tán FlowForge (DWOP).
 
-## BR-001 — Roles
+---
 
-- **Source:** `03-use-cases.md`, `08-invest-requirements.md`
-- **Related US:** US01–US17
-- **Related API:** all protected operations
-- **Rule:** The only V1 roles are `ADMIN`, `SHOP_OWNER`, `EMPLOYEE`, and `VIEWER`. Backend authorization is authoritative.
+## BR-001 — Hệ Thống Vai Trò (Roles & RBAC)
 
-## BR-002 — Employee ownership
+- **Nguồn:** `docs/03-use-cases.md`, `docs/08-invest-requirements.md` (US01, US12)
+- **APIs liên quan:** Mọi endpoint bảo vệ (`/api/v1/...`)
+- **Quy tắc:** Hệ thống quản lý chặt chẽ 4 vai trò duy nhất:
+  1. `ADMIN` (Administrator): Toàn quyền quản trị người dùng, cấu hình cụm, xem audit trail và điều phối.
+  2. `OPERATOR` (Operations Lead): Kích hoạt workflow, hủy lượt chạy khẩn cấp, giám sát worker và chạy AI chẩn đoán lỗi.
+  3. `DEVELOPER` (Workflow Developer): Thiết kế đồ thị DAG, kích hoạt test run, sử dụng tính năng AI Prompt-to-DAG.
+  4. `VIEWER` (Platform Observer): Chỉ có quyền đọc (Read-only) telemetry cụm, lịch sử chạy và trạng thái worker.
 
-- **Source:** AC-UC06, AC-UC10
-- **Related US:** US06, US10
-- **Related API:** `updateIncome`, `updateExpense`, attachment mutations
-- **Rule:** An Employee may update only a transaction they created. Employees cannot soft-delete transactions.
+---
 
-## BR-003 — Soft deletion
+## BR-002 — Tính Hợp Lệ Của Đồ Thị DAG & Kiểm Tra Chu Trình (Kahn's Algorithm)
 
-- **Source:** AC-UC07, AC-UC11
-- **Related US:** US07, US11
-- **Related API:** `softDeleteIncome`, `softDeleteExpense`
-- **Rule:** Income and expense deletion sets deletion metadata and retains the row. Deleted transactions are excluded from active lists, dashboard aggregates, and reports.
+- **Nguồn:** `docs/01-scope.md`, `docs/08-invest-requirements.md` (US04)
+- **APIs liên quan:** `POST /api/v1/workflows`
+- **Quy tắc:**
+  - Mỗi workflow phải có ít nhất 1 step hợp lệ.
+  - Mỗi step phải có `id` duy nhất trong cùng một workflow.
+  - Các phần tử trong danh sách phụ thuộc (`dependsOn`) phải trỏ tới `id` của step tồn tại trong cùng workflow.
+  - Step không được phép tự phụ thuộc vào chính nó (`step.id != dep`).
+  - Hệ thống áp dụng thuật toán sắp xếp tô-pô **Kahn's Algorithm**. Nếu phát hiện chu trình kín (chu trình lặp gây deadlock), hệ thống từ chối lưu và trả về mã lỗi `400 Bad Request` kèm mã lỗi `CYCLE_DETECTED`.
 
-## BR-004 — Canonical currency
+---
 
-- **Source:** `01-scope.md`, AC-UC03, AC-UC13
-- **Related US:** US03–US14
-- **Related API:** dashboard, income, expense, and report operations
-- **Rule:** Monetary values are persisted and returned in USD. EUR is presentation-only conversion.
+## BR-003 — Máy Trạng Thái Thực Thi (Execution State Machine)
 
-## BR-005 — Positive transaction amounts
+- **Nguồn:** `docs/01-scope.md`, `docs/08-invest-requirements.md` (US06, US07, US08)
+- **APIs liên quan:** `POST /api/v1/executions/workflows/{id}/trigger`, `POST /api/v1/executions/{id}/cancel`
+- **Quy tắc:**
+  - Vòng đời của một Execution Instance:
+    `PENDING` -> `RUNNING` -> `COMPLETED` / `FAILED` / `CANCELLED`
+  - Vòng đời của một Task Execution (Step):
+    `PENDING` -> `SCHEDULED` -> `RUNNING` -> `COMPLETED` / `FAILED` / `CANCELLED` / `TIMED_OUT`
+  - Trạng thái instance chỉ chuyển sang `COMPLETED` khi tất cả các bước con đều hoàn thành thành công (`COMPLETED`).
+  - Nếu bất kỳ bước nào bị `FAILED` và vượt quá số lần retry cho phép (`maxRetries`), instance sẽ chuyển sang trạng thái `FAILED`.
 
-- **Source:** AC-UC05, AC-UC09, `shop_finance.sql`
-- **Related US:** US05, US09
-- **Related API:** `createIncome`, `updateIncome`, `createExpense`, `updateExpense`
-- **Rule:** Transaction amounts must satisfy the validation and database constraints in the approved contract; primary income/expense amounts are positive.
+---
 
-## BR-006 — Active categories
+## BR-004 — Tự Động Giải Phóng Bước Kế Tiếp (Step Dependency Resolution)
 
-- **Source:** OpenAPI category descriptions and acceptance criteria
-- **Related US:** US04, US05, US08, US09, US12
-- **Related API:** `listIncomeCategories`, `listExpenseCategories`
-- **Rule:** Category lookups expose active categories and transaction writes must reference the appropriate category type.
+- **Nguồn:** `docs/01-scope.md`, `docs/08-invest-requirements.md` (US07)
+- **APIs liên quan:** `POST /api/v1/tasks/{task_id}/complete`
+- **Quy tắc:**
+  - Khi một task hoàn tất (`COMPLETED`), DAG Engine tự động quét đồ thị để tìm các task kế tiếp.
+  - Một task chỉ được chuyển từ `PENDING` sang `SCHEDULED` và đưa vào hàng đợi tương ứng khi **TẤT CẢ** các task tiền đề (`dependsOn`) của nó đã đạt trạng thái `COMPLETED`.
 
-## BR-007 — Import preview
+---
 
-- **Source:** AC-UC12
-- **Related US:** US12
-- **Related API:** `previewImport`
-- **Rule:** Preview validates/parses the workbook and returns row results without inserting income or expense records.
+## BR-005 — Quyền Hạn Hủy Bỏ Khẩn Cấp (Emergency Cancellation)
 
-## BR-008 — Import atomicity
+- **Nguồn:** `docs/03-use-cases.md` (UC06), `docs/08-invest-requirements.md` (US08)
+- **APIs liên quan:** `POST /api/v1/executions/{id}/cancel`
+- **Quy tắc:**
+  - Chỉ có `ADMIN` và `OPERATOR` mới có quyền gửi lệnh hủy lượt chạy.
+  - Khi hủy instance, mọi task con đang ở trạng thái `SCHEDULED` hoặc `RUNNING` sẽ lập tức bị hủy bỏ (`CANCELLED`), đồng thời giải phóng worker slot đang xử lý tác vụ đó.
 
-- **Source:** AC-UC12, `docs/api/README.md`
-- **Related US:** US12
-- **Related API:** `createImport`
-- **Rule:** If any row is invalid, the batch inserts zero income/expense records. A valid batch commits all imported records.
-- **Execution:** synchronous within 10 MB/5,000 rows; the response is the final import summary.
+---
 
-## BR-009 — Report authorization
+## BR-006 — Cô Lập Hàng Đợi Tác Vụ (Queue Isolation)
 
-- **Source:** AC-UC13–14
-- **Related US:** US13, US14
-- **Related API:** `getReport`, `exportReport`
-- **Rule:** Reports and exports are available to Administrator, Shop Owner, and Viewer, but not Employee. Export must represent the same approved filter set as the visible report.
-- **Contract:** export reuses the same approved filters and totals as `getReport`.
+- **Nguồn:** `docs/01-scope.md`, `docs/08-invest-requirements.md` (US10)
+- **APIs liên quan:** `POST /api/v1/tasks/poll`
+- **Quy tắc:**
+  - Hệ thống hỗ trợ 5 hàng đợi độc lập: `default`, `compute`, `data-io`, `payment`, `ai-agent`.
+  - Mỗi step được chỉ định 1 hàng đợi cụ thể.
+  - Worker node khi gửi request poll task chỉ được kéo các task thuộc các queue mà nó đã đăng ký hỗ trợ (`supported_queues`).
 
-## BR-010 — User administration
+---
 
-- **Source:** AC-UC16
-- **Related US:** US16
-- **Related API:** user operations
-- **Rule:** Only Administrator may manage users. Passwords and password hashes are never returned.
+## BR-007 — Nhịp Tim Sống Worker (Worker Heartbeat & Health Check)
 
-## BR-011 — Personal profile
+- **Nguồn:** `docs/01-scope.md`, `docs/08-invest-requirements.md` (US10)
+- **APIs liên quan:** `POST /api/v1/workers/{worker_id}/heartbeat`, `GET /api/v1/workers`
+- **Quy tắc:**
+  - Mỗi Worker định kỳ gửi heartbeat (mặc định mỗi 10-30 giây).
+  - Nếu một Worker không gửi heartbeat quá 60 giây, trạng thái sẽ tự động chuyển thành `OFFLINE`.
+  - Các tác vụ đang bị gán cho Worker offline sẽ được đánh dấu để tái điều phối (re-dispatch) sang Worker khác khả dụng.
 
-- **Source:** AC-UC17
-- **Related US:** US17
-- **Related API:** profile operations
-- **Rule:** Users may update only approved self-service fields and cannot change their own role or active status. Password change requires the current password.
+---
 
-## BR-012 — Sensitive audit data
+## BR-008 — Nhật Ký Kiểm Toán Bất Biến (Immutable Audit Trail)
 
-- **Source:** security and logging constraints
-- **Related US:** cross-cutting
-- **Related API:** all audited mutations
-- **Rule:** Passwords, password hashes, tokens, signing keys, secrets, and raw sensitive file content must not be stored in logs or audit payloads.
+- **Nguồn:** `docs/03-use-cases.md` (UC10), `docs/08-invest-requirements.md` (US11)
+- **APIs liên quan:** `GET /api/v1/audit`
+- **Quy tắc:**
+  - Mọi thao tác nhạy cảm: Đăng nhập (`LOGIN`), Đăng xuất (`LOGOUT`), Tạo quy trình (`CREATE_WORKFLOW`), Kích hoạt thực thi (`TRIGGER_RUN`), Hủy lượt chạy (`CANCEL_RUN`), Thay đổi người dùng (`UPDATE_USER`) bắt buộc phải ghi lại nhật ký kiểm toán.
+  - Dữ liệu audit là bất biến (append-only), không cho phép chỉnh sửa hoặc xóa qua API.
+  - Tuyệt đối không lưu mật khẩu thô, token bí mật hoặc signing keys vào log audit.
 
-## BR-013 — Logout token semantics
+---
 
-- **Source:** US02 and `POST /auth/logout`
-- **Related US:** US02
-- **Related API:** `logout`
-- **Status:** ACCEPTED
-- **Rule:** access tokens expire after 30 minutes. Logout removes token/private session state on the client; V1 has no refresh token or server-side revocation store.
+## BR-009 — Trí Tuệ Nhân Tạo Hỗ Trợ (AI Prompt-to-DAG & Self-Healing)
 
-## BR-014 — Audit action taxonomy
-
-- **Source:** soft-delete rules and database audit design
-- **Related US:** US07, US11
-- **Related API:** `softDeleteIncome`, `softDeleteExpense`
-- **Status:** ACCEPTED
-- **Rule:** business actions are `CREATE`, `UPDATE`, `SOFT_DELETE`, and `RESTORE`. Technical trigger verbs must be mapped to these actions. Each record contains actor, entity type/id, timestamp, redacted before/after, and correlation ID when available.
+- **Nguồn:** `docs/01-scope.md`, `docs/08-invest-requirements.md` (US05, US09)
+- **APIs liên quan:** `POST /api/v1/ai/generate-workflow`, `POST /api/v1/ai/diagnose-failure`
+- **Quy tắc:**
+  - AI Prompt-to-DAG phải sinh cấu trúc đồ thị thỏa mãn định dạng `DagDefinition` và vượt qua bài kiểm tra chu trình của Kahn's algorithm trước khi trả về cho người dùng.
+  - AI Failure Diagnosis chỉ được kích hoạt đối với các task hoặc instance có trạng thái lỗi (`FAILED` hoặc `TIMED_OUT`), trích xuất log lỗi và đưa ra phân tích nguyên nhân gốc rễ (Root Cause) cùng khuyến nghị tự phục hồi (Self-Healing).

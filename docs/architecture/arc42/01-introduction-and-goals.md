@@ -1,63 +1,56 @@
 # 1. Introduction and Goals
 
-HandmadeFinance is a web application for managing **income and expenses** for a handmade shop: recording money in and money out, tracking total revenue, total expenses, and **Net Result** over time and by category.
+**FlowForge (Distributed Workflow Orchestration Platform - DWOP)** helps engineering and operations teams orchestrate complex, multi-step distributed workflows as Directed Acyclic Graphs (DAG), manage asynchronous task dispatch across isolated worker queues, automate failure self-healing with AI, and track end-to-end execution lifecycle and audit logs in one unified console.
 
 ## 1.1 Requirements Overview
 
-### Problem
+### Problem Statement
 
-The shop needs a simple place to record transactions and understand cash performance, not a complete accounting or sales system.
+In modern distributed systems and microservices architectures, business workflows span multiple services (ETL extraction, payment gateway calls, heavy compute, AI model inferences, and notifications). Direct peer-to-peer REST calls introduce:
+- **Cascading Failures:** A failure in one service can leave transactions corrupted or unrecoverable.
+- **Deadlocks and Cycles:** Undetected circular dependencies cause permanent lockups.
+- **Lack of Observability:** No centralized view of which step is running, who owns it, or why it failed.
+- **Queue Contention:** Heavy compute jobs starve fast I/O tasks when using a single shared queue.
 
-### Business goal (V1)
+### Business Goals (V1)
 
-- Record **Income** and **Expense** with categories, tax, record status, and source (manual / Excel).
-- Dashboard and reports use **one USD dataset**; EUR is only a display-time conversion.
-- Excel Import supports validation, preview, batch tracking, and audit.
-- Four fixed roles with authorization; important actions are audited.
-- Attachments: metadata + storage path; binary files are not stored in PostgreSQL.
+- Allow teams to define multi-step workflows as **Directed Acyclic Graphs (DAG)**.
+- Guarantee **Zero-Cycle Deadlock Prevention** via Kahn's algorithm before saving any workflow.
+- Manage execution lifecycles with a strict state machine (`PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`).
+- Provide **Queue Isolation** across 5 dedicated queues: `default`, `compute`, `data-io`, `payment`, `ai-agent`.
+- Integrate **AI Copilot** for Prompt-to-DAG generation and automated root cause failure diagnosis.
+- Enforce Role-Based Access Control (**RBAC**) across 4 roles with append-only audit logging.
 
-### Functional scope (mapped to feature catalog)
+### Functional Scope
 
-| ID | Capability |
-| -- | ---------- |
-| F01 | Authentication |
-| F02 | Dashboard |
-| F03 | Income Management |
-| F04 | Expense Management |
-| F05 | Reports |
-| F06 | Excel Import |
-| F07 | Attachments |
-| F08 | Audit Log |
-| F09 | User Management (Admin) |
-| F10 | Profile |
-
-Detailed UCs: [docs/03-use-cases.md](../../03-use-cases.md).
-
-### Non-goals (V1)
-
-No inventory / SKU management, payroll, double-entry accounting, electronic invoicing, payment gateways, Etsy API, or AI/chatbot.
+| ID | Capability | Description |
+|---|---|---|
+| F01 | Authentication & Identity | Login, logout, PBKDF2 password hashing, HMAC-SHA256 Bearer tokens |
+| F02 | Cluster Telemetry Dashboard | Active workflows, running instances, worker load, queue depths |
+| F03 | Workflow DAG Management | DAG JSON creation, cycle validation (Kahn), step dependencies |
+| F04 | AI Prompt-to-DAG | Natural language prompt translated into valid DAG JSON schema |
+| F05 | Execution Dispatch Engine | Trigger instance, resolve root steps, state machine management |
+| F06 | Step Progress Tracking | Real-time task execution progress, retry counter, timeouts |
+| F07 | Emergency Cancellation | Admin/Operator cancel running executions and cascade-abort tasks |
+| F08 | AI Failure Self-Healing | Automated error analysis, root cause discovery, and fix recommendations |
+| F09 | Worker Fleet Management | Concurrency slots, periodic heartbeats, queue polling, offline detection |
+| F10 | Audit Trail & RBAC | Immutable security logging and role-based action gating |
 
 ## 1.2 Quality Goals
 
-Three to five architecture priorities (detailed scenarios: [10-quality-requirements.md](10-quality-requirements.md)).
-
-| ID | Quality Goal | Why it matters |
-| -- | ------------ | -------------- |
-| QG-1 | Data Correctness | Income/expense totals and Net Result must match active records; USD is the canonical currency |
-| QG-2 | Security | Roles and permissions must be rejected by the .NET Backend even if React hides the button |
-| QG-3 | Auditability | CREATE/UPDATE/SOFT_DELETE/RESTORE/LOGIN/EXPORT/IMPORT must be traceable to actor, entity, time, and correlation context without secrets |
-| QG-4 | Usability | Each of the four roles sees the correct menu; Viewer must not be exposed to write actions |
-| QG-5 | Maintainability | Modular Monolith + a single Persistence layer for SQL makes business modules easier to extend |
+| ID | Quality Goal | Rationale |
+|---|---|---|
+| **QG-1** | **Orchestration Correctness** | Kahn's algorithm strictly prevents circular dependencies; execution state transitions are atomic. |
+| **QG-2** | **Queue Isolation** | High-load compute tasks cannot starve high-priority payment or I/O tasks. |
+| **QG-3** | **Security & RBAC** | Strict role enforcement at the FastAPI backend boundary; append-only audit trail. |
+| **QG-4** | **Observability & Self-Healing** | Real-time step progress visualizer and AI-driven root cause failure diagnostics. |
+| **QG-5** | **Developer Usability** | Modern high-tech console with Dark/Light mode, interactive DAG views, and Swagger API. |
 
 ## 1.3 Stakeholders
 
-| Stakeholder | Concerns |
-| ----------- | -------- |
-| Shop Owner (`SHOP_OWNER`) | Track income/expenses, reports, audit log |
-| Administrator (`ADMIN`) | Users, access configuration, full business permissions |
-| Employee (`EMPLOYEE`) | Record / edit own transactions, import |
-| Viewer (`VIEWER`) | Read dashboard, income, expenses, reports, profile |
-| Developer / maintainer | Module boundaries, schema, ADRs |
-| Operator (local / future production) | Existing PostgreSQL Docker setup; select production provider/topology before go-live |
-
-The four roles are detailed in [Section 3](03-context-and-scope.md).
+| Stakeholder | Primary Responsibilities |
+|---|---|
+| **Administrator (`ADMIN`)** | Full cluster governance, user RBAC management, cluster settings, and audit logs. |
+| **Operations Lead (`OPERATOR`)** | Triggers workflows, cancels runaway runs, monitors worker loads, runs AI diagnostics. |
+| **Workflow Developer (`DEVELOPER`)** | Designs workflow DAG schemas, validates dependencies, uses AI Prompt-to-DAG. |
+| **Platform Observer (`VIEWER`)** | Read-only inspection of cluster telemetry, active runs, worker nodes, and task queues. |

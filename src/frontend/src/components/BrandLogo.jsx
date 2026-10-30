@@ -46,8 +46,8 @@ export function BrandLogo({
       <BrandIcon size={iconSize} />
       <div className="sb-brand-text">
         <div className="sb-brand-name">
-          <span className="brand-primary">Nexus</span>
-          <span className="brand-accent">DAG</span>
+          <span className="brand-primary">Flow</span>
+          <span className="brand-accent">Forge</span>
         </div>
         {showSub && (
           <div className="sb-brand-sub">

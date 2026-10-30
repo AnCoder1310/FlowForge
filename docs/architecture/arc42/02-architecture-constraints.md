@@ -1,53 +1,25 @@
 # 2. Architecture Constraints
 
-Only constraints grounded in the repository or architecture baseline (Sections 4 and 9) are included. Do not invent deadlines, budget, or team size.
-
 ## 2.1 Technical Constraints
 
-| Constraint | Source | Type |
-| ---------- | ------ | ---- |
-| Web Frontend = **React.js** | Architecture baseline, ADR-001 | DECISION |
-| Backend = **.NET (C#)**, Modular Monolith | Architecture baseline, ADR-002, ADR-003 | DECISION |
-| API = **REST**, **HTTPS**, **JSON** | ADR-005 | DECISION |
-| Database = **PostgreSQL** | `src/database/shop_finance.sql`, docker-compose | FACT + DECISION |
-| Schema name `shop_finance`; local database name `handmade_finance` | SQL, `.env.example` | FACT |
-| Only .NET Backend may issue SQL to PostgreSQL | Baseline, ADR-004 | DECISION |
-| Persistence / Data Access is the only SQL layer | Building Block View | DECISION |
-| Local Postgres: image `postgres:16`, host port **5433**, timezone `Asia/Ho_Chi_Minh` | `docker-compose.yml` | FACT |
-| In V1, `currency_code` is only `USD` (table CHECK constraint) | SQL | FACT |
-| API style = ASP.NET Core attribute Controllers | ADR-002 | DECISION |
-| Data access = Entity Framework Core + Npgsql | ADR-009 | DECISION |
-| Authentication = 30-minute JWT Bearer, no refresh token or V1 revocation store | ADR-010 | DECISION |
-| Excel parsing = NPOI; files accessed through `IFileStorage` | ADR-011 | DECISION |
-| Import = synchronous, atomic, max 10 MB/5,000 rows | ADR-013 | DECISION |
+| Constraint | Value / Technology | Rationale |
+|---|---|---|
+| **Frontend Framework** | **React 18 + Vite SPA** | Fast load times, responsive UI, component modularity. |
+| **Backend Engine** | **Python 3.10+ FastAPI** | High performance async ASGI, native OpenAPI schema generation. |
+| **DAG Cycle Algorithm** | **Kahn's Algorithm (Topological Sort)** | $O(V + E)$ deterministic cycle detection before persisting any workflow. |
+| **Task Queue Isolation** | **5 Isolated Queues** | `default`, `compute`, `data-io`, `payment`, `ai-agent`. |
+| **Database Support** | **SQLite & PostgreSQL 16+** | Local lightweight SQLite file; containerized PostgreSQL in Docker Compose. |
+| **API Protocol** | **RESTful JSON over HTTPS** | OpenAPI 3.0+ compliant with RFC 7807 Problem Details error formats. |
+| **Authentication** | **HMAC-SHA256 Bearer Token** | Stateless tokens signed with secret key; configurable 24-hour expiration. |
+| **Password Storage** | **PBKDF2-HMAC-SHA256** | 100,000 iterations with 16-byte cryptographically secure random salt. |
+| **AI Integration** | **LLM Copilot & Heuristics** | Prompt-to-DAG generation and automated failure root cause diagnostics. |
 
-Production hosting and managed storage remain replaceable deployment choices. Application code depends on abstractions rather than a cloud vendor.
+## 2.2 Operational Conventions
 
-## 2.2 Organizational Constraints
-
-| Constraint | Source |
-| ---------- | ------ |
-| PostgreSQL schema is already designed; do not invent tables outside the model | `src/database/` |
-
-## 2.3 Conventions
-
-| Convention | Details |
-| ---------- | ------- |
-| Role enum | `ADMIN`, `SHOP_OWNER`, `EMPLOYEE`, `VIEWER` — do not add roles |
-| UI permission hiding | Menus/buttons are not rendered when permission is missing; unauthorized URL access → 403 |
-| Soft-delete list | `deleted_at IS NULL` for active records |
-| Business audit actions | `CREATE`, `UPDATE`, `SOFT_DELETE`, `RESTORE` plus cross-cutting `LOGIN`, `EXPORT`, `IMPORT`; technical SQL verbs are mapped |
-| Data source | `MANUAL` or `EXCEL_IMPORT` (Excel requires `import_batch_id`) |
-| Import status | `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED` |
-| Hash routes (information architecture) | `#/login`, `#/dashboard`, `#/incomes`, `#/expenses`, `#/reports`, `#/import`, `#/audit`, `#/users`, `#/profile`, `#/403` |
-
-## 2.4 Business Constraints
-
-| Constraint | Details |
-| ---------- | ------- |
-| Canonical currency USD | EUR is Presentation Conversion only |
-| Four fixed roles | Matrix in [docs/03-use-cases.md](../../03-use-cases.md) |
-| Employee cannot delete transactions | `incomeDelete` / `expenseDelete` = false |
-| Employee cannot view reports / audit log | `reportRead` / `auditRead` = false |
-| Only Admin manages users | `userManagement` |
-| V1 does not integrate external systems | No payment gateway, no Etsy API |
+| Convention | Description |
+|---|---|
+| **Role Enum** | `ADMIN`, `OPERATOR`, `DEVELOPER`, `VIEWER` strictly enforced on server. |
+| **Execution States** | `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`. |
+| **Step States** | `PENDING`, `SCHEDULED`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`, `TIMED_OUT`. |
+| **Worker Heartbeat** | Periodic ping (10-30s); timeout after 60s transitions worker to `OFFLINE`. |
+| **Audit Verbs** | `LOGIN`, `LOGOUT`, `CREATE`, `TRIGGER`, `CANCEL`, `UPDATE`, `COMPLETE`, `FAIL`. |

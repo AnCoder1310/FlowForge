@@ -1,8 +1,8 @@
-# HandmadeFinance — arc42 Architecture Documentation
+# FlowForge (DWOP) — arc42 Architecture Documentation
 
-> **Status:** Baseline · **Audience:** developers, reviewers, and maintainers
+> **Status:** Baseline · **Audience:** Developers, reviewers, system architects, and maintainers
 
-This documentation uses arc42 to explain goals, constraints, decisions, and runtime scenarios. C4 Mermaid diagrams provide the primary structural views; arc42 does not define a separate architecture.
+This documentation uses the international arc42 template to describe the goals, constraints, building blocks, runtime scenarios, and architectural decisions of **FlowForge (Distributed Workflow Orchestration Platform - DWOP)**.
 
 ```mermaid
 flowchart LR
@@ -38,14 +38,12 @@ flowchart LR
 | 11 | [Risks and Technical Debt](11-risks-and-technical-debt.md) |
 | 12 | [Glossary](12-glossary.md) |
 
-## Baseline
+## Baseline Architecture
 
-- **Current:** the React/Vite mock runs entirely in the browser.
-- **Target:** React Web → ASP.NET Core Web API → PostgreSQL.
-- **Principle:** the backend is the trust boundary; the domain does not depend on transport or SQL details.
-- **Step 7 baseline:** Simplified Clean Architecture (Api/Application/Infrastructure), ASP.NET Core Controllers, 30-minute JWT Bearer, EF Core/Npgsql, synchronous NPOI import, and local `IFileStorage`.
-- **Deferred deployment choices:** production hosting, managed storage, backups, exchange-rate provider, and centralized monitoring.
+- **Presentation Layer:** React 18 + Vite SPA, Tailwind CSS / modern CSS, Dark & Light Mode console.
+- **Application Core:** Python 3.10+ FastAPI ASGI, async execution engine, Kahn's algorithm DAG cycle detection, and LLM Copilot.
+- **Data Persistence:** Dual-mode SQLite (local embedded) & PostgreSQL 16 (containerized Docker Compose).
+- **Worker Infrastructure:** 5 isolated task queues (`default`, `compute`, `data-io`, `payment`, `ai-agent`) with periodic heartbeats.
+- **Security:** PBKDF2-HMAC-SHA256 password hashing, stateless HMAC-SHA256 Bearer Token, RBAC, and append-only audit logging.
 
-Related: [C4 C1 → C2 → C3 → C4](../c4/README.md) · [C4 Code for two core features](../c4/04-code.md) · [Use Case Diagram](../../03-use-cases.md#use-case-diagram).
-
-Governance and verification: [Architecture conformance](../architecture-conformance.md) · [Document governance](../document-governance.md) · [Consistency audit](../../reviews/architecture-consistency-audit.md) · [Threat model](../../security/threat-model.md).
+Related: [C4 Model Views](../c4/README.md) · [API Documentation](../../api/README.md) · [Invest Requirements](../../08-invest-requirements.md).

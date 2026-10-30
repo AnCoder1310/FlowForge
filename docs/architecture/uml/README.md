@@ -1,25 +1,19 @@
-# Detailed UML — HandmadeFinance
+# Detailed UML — FlowForge (DWOP)
 
-> **Status:** Code-level design for ASP.NET Core/C#; the backend has not been implemented.
+> **Status:** Code-level design for Python FastAPI & React SPA; fully implemented and verified with automated test suites.
 
-This UML set expands the C3/C4 architecture using the intended class names and target folder structure:
+This UML documentation provides class and sequence models for the core subsystems of FlowForge:
 
 | Document | Content |
 |---|---|
-| [Class diagrams](01-class-diagrams.md) | Controllers, DTOs, Services, Policies, Validators, Entities, and Repositories for Authentication, Income, and Expense |
-| [Sequence diagrams](02-sequence-diagrams.md) | Login, income creation/update, and expense creation/soft deletion, including error paths |
-| [Remaining class diagrams](03-additional-class-diagrams.md) | Dashboard, Categories, Reports, Import, Attachments, Audit, Users, and Profile |
-| [API traceability and sequences](03-api-traceability.md) | Every OpenAPI operation mapped to its use case, service, authorization rule, and runtime pattern |
-| [Master traceability](../../traceability/master-traceability.md) | US01–US17 mapped across requirements, screens, C4, API, database, target modules, UML, and future tests |
-| [Folder structure](../../07-folder-structure.md) | Target React and three-tier ASP.NET Core structure |
+| [Class diagrams](01-class-diagrams.md) | Routers, Domain Models, Services, DAG Engine, Workers, and AI Copilot |
+| [Sequence diagrams](02-sequence-diagrams.md) | Login, DAG creation with Kahn cycle validation, Execution triggering, Worker polling, and AI Self-Healing |
+| [Remaining class diagrams](03-additional-class-diagrams.md) | Audit Trail, Telemetry Metrics, User RBAC, and Profile management |
+| [API traceability and sequences](03-api-traceability.md) | All 24 OpenAPI endpoints mapped to use cases, services, RBAC rules, and database entities |
+| [Master traceability](../../traceability/master-traceability.md) | US01–US13 mapped end-to-end across requirements, screens, C4, API, DB, and test suites |
 
 ## Relationship to C4 and arc42
 
-- C4 Level 3 describes architectural components and their major responsibilities.
-- C4 Level 4 describes code-level dependency patterns.
-- UML documents classes, methods, and call order for Authentication, Income, and Expense.
-- The arc42 Runtime View provides broader system-wide runtime scenarios.
-
-The [OpenAPI 3.0.4 specification](../../api/openapi.yaml) is the source of truth for HTTP paths, requests, responses, and the security scheme. The sequence diagrams illustrate the corresponding runtime interactions.
-
-Logout, synchronous atomic import, import-to-ledger validation, report/export parity, and soft-delete audit semantics are accepted V1 decisions. Diagrams describe TARGET code collaboration; executable tests and backend completion remain separate implementation evidence.
+- **C4 Level 3 & 4:** Describes architectural components and code-level structural dependencies.
+- **UML Class Diagrams:** Documents concrete Python domain classes, Pydantic DTOs, and Service methods.
+- **UML Sequence Diagrams:** Illustrates runtime message passing across presentation, application services, DAG engine, worker fleet, and persistent store.

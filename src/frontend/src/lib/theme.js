@@ -1,3 +1,5 @@
-export const CHART_INCOME = "#0071e3";
-export const CHART_EXPENSE = "#b3261e";
-export const CHART_PALETTE = ["#0071e3", "#b3261e", "#1d7a4c", "#9a6700", "#0058b8", "#2b93f0"];
+export const CHART_COMPLETED = "#10b981";
+export const CHART_FAILED = "#ef4444";
+export const CHART_RUNNING = "#3b82f6";
+export const CHART_PENDING = "#f59e0b";
+export const CHART_PALETTE = ["#3b82f6", "#10b981", "#ef4444", "#f59e0b", "#8b5cf6", "#06b6d4"];
