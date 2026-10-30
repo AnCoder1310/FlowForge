@@ -58,7 +58,16 @@ async function request(path, { method = "GET", body } = {}) {
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     if (res.status === 401 && token && onUnauthorized) onUnauthorized();
-    const detail = data?.errors ? Object.values(data.errors).flat().join(" ") : data?.detail;
+    let detail = "";
+    if (data?.errors) {
+      detail = Object.values(data.errors).flat().join(" ");
+    } else if (Array.isArray(data?.detail)) {
+      detail = data.detail
+        .map((d) => (d.msg ? `${d.loc ? d.loc.filter((l) => l !== "body").join(".") + ": " : ""}${d.msg}` : JSON.stringify(d)))
+        .join("; ");
+    } else if (typeof data?.detail === "string") {
+      detail = data.detail;
+    }
     throw new ApiError(res.status, detail || data?.title || `Lỗi ${res.status}`, data?.errorCode);
   }
   return res;

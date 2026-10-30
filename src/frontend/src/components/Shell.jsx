@@ -11,7 +11,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/dashboard", label: "Tổng quan", perm: "dashboard", icon: "layout-dashboard", badge: null },
       { to: "/workflows", label: "Quy trình (DAG)", perm: "workflowRead", icon: "git-fork", badge: null },
-      { to: "/executions", label: "Lượt chạy (Runs)", perm: "executionRead", icon: "play-circle", badge: "LIVE" },
+      { to: "/executions", label: "Lượt chạy (Runs)", perm: "executionRead", icon: "play-circle", badge: null },
       { to: "/workers", label: "Workers & Queues", perm: "workerRead", icon: "server", badge: null },
     ],
   },

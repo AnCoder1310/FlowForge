@@ -1,7 +1,8 @@
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+import json
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 class UserRole(str, Enum):
     ADMIN = "ADMIN"
@@ -53,8 +54,78 @@ class DagStep(BaseModel):
     configurationJson: Optional[str] = None
     condition: Optional[str] = None
 
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_type(cls, v: Any) -> Any:
+        if isinstance(v, TaskType):
+            return v
+        if not v:
+            return TaskType.WORKER_TASK
+        s = str(v).strip().upper().replace("-", "_").replace(" ", "_")
+        aliases = {
+            "HTTP": TaskType.HTTP_TASK,
+            "HTTP_TASK": TaskType.HTTP_TASK,
+            "WORKER": TaskType.WORKER_TASK,
+            "WORKER_TASK": TaskType.WORKER_TASK,
+            "AI": TaskType.AI_AGENT_TASK,
+            "AI_AGENT": TaskType.AI_AGENT_TASK,
+            "AI_AGENT_TASK": TaskType.AI_AGENT_TASK,
+            "NOTIFICATION": TaskType.NOTIFICATION,
+            "NOTIFY": TaskType.NOTIFICATION,
+            "DECISION": TaskType.DECISION,
+            "DELAY": TaskType.DELAY,
+            "SYSTEM": TaskType.SYSTEM_TASK,
+            "SYSTEM_TASK": TaskType.SYSTEM_TASK,
+        }
+        if s in aliases:
+            return aliases[s]
+        for member in TaskType:
+            if member.value == s:
+                return member
+        return TaskType.WORKER_TASK
+
+    @field_validator("queue", mode="before")
+    @classmethod
+    def normalize_queue(cls, v: Any) -> str:
+        if not v or not str(v).strip():
+            return "default"
+        return str(v).strip()
+
+    @field_validator("dependsOn", mode="before")
+    @classmethod
+    def normalize_depends_on(cls, v: Any) -> List[str]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            v = v.strip()
+            return [v] if v else []
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if x is not None and str(x).strip()]
+        return []
+
+    @field_validator("configurationJson", mode="before")
+    @classmethod
+    def normalize_config(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, (dict, list)):
+            return json.dumps(v, ensure_ascii=False)
+        return str(v)
+
 class DagDefinition(BaseModel):
     steps: List[DagStep]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_dag(cls, data: Any) -> Any:
+        if isinstance(data, list):
+            return {"steps": data}
+        if isinstance(data, dict):
+            if "steps" in data:
+                return data
+            if "dag" in data:
+                return cls.normalize_dag(data["dag"])
+        return data
 
 # --- Workflow Schemas ---
 class WorkflowDefinition(BaseModel):
@@ -74,11 +145,33 @@ class CreateWorkflowRequest(BaseModel):
     description: Optional[str] = None
     dag: DagDefinition
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_request(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if "dag" not in data and "steps" in data:
+            data["dag"] = {"steps": data.pop("steps")}
+        elif "dag" in data and isinstance(data["dag"], list):
+            data["dag"] = {"steps": data["dag"]}
+        if not data.get("name") or not str(data.get("name")).strip():
+            data["name"] = data.get("workflow_name") or data.get("title") or "Custom-Workflow"
+        return data
+
 class UpdateWorkflowRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     dag: Optional[DagDefinition] = None
     isActive: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_request(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if "dag" in data and isinstance(data["dag"], list):
+            data["dag"] = {"steps": data["dag"]}
+        return data
 
 # --- Execution Schemas ---
 class TaskExecution(BaseModel):

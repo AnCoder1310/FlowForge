@@ -202,72 +202,38 @@ export function OrchestratorProvider({ children }) {
       toast(`Đã kích hoạt workflow #${res.id}!`, "success");
       loadMetrics();
       return res;
-    } catch {
-      // Mock trigger
-      const wf = workflows.find((w) => w.id === workflowId);
-      const newInst = {
-        id: Date.now(),
-        workflowId,
-        workflowName: wf?.name || "Workflow",
-        version: wf?.version || 1,
-        status: "RUNNING",
-        inputPayloadJson: inputJson,
-        contextDataJson: "{}",
-        startedAt: new Date().toISOString(),
-        completedAt: null,
-        createdAt: new Date().toISOString(),
-        tasks: (wf?.dag?.steps || []).map((s, idx) => ({
-          id: Date.now() + idx,
-          stepId: s.id,
-          stepName: s.name,
-          status: idx === 0 ? "RUNNING" : "PENDING",
-          queueName: s.queue || "default",
-          retryCount: 0,
-          assignedWorkerId: idx === 0 ? workers[0]?.workerId : null,
-        }))
-      };
-      setExecutions((prev) => [newInst, ...prev]);
-      toast(`Đã kích hoạt execution #${newInst.id} (demo)!`, "success");
-      return newInst;
+    } catch (err) {
+      toast(err.message || "Lỗi kích hoạt workflow", "danger");
+      throw err;
     }
-  }, [workflows, workers, toast, loadMetrics]);
+  }, [toast, loadMetrics]);
 
   const cancelExecution = useCallback(async (id) => {
     try {
       await api.post(`/executions/${id}/cancel`);
-    } catch {
-      // mock cancel
+      setExecutions((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, status: "CANCELLED", completedAt: new Date().toISOString() } : e))
+      );
+      toast(`Đã hủy lượt chạy #${id}`);
+      loadMetrics();
+    } catch (err) {
+      toast(err.message || "Lỗi hủy lượt chạy", "danger");
+      throw err;
     }
-    setExecutions((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status: "CANCELLED", completedAt: new Date().toISOString() } : e))
-    );
-    toast(`Đã hủy lượt chạy #${id}`);
-    loadMetrics();
   }, [toast, loadMetrics]);
 
   const createWorkflow = useCallback(async (data) => {
     try {
       const res = await api.post("/workflows", data);
       setWorkflows((prev) => [res, ...prev]);
-      toast("Tạo mới workflow thành công!", "success");
+      toast(`Tạo mới workflow '${res.name}' (#${res.id}) thành công!`, "success");
       loadMetrics();
       return res;
-    } catch {
-      const newWf = {
-        id: Date.now(),
-        name: data.name,
-        version: 1,
-        description: data.description,
-        isActive: true,
-        createdBy: current?.id,
-        createdAt: new Date().toISOString(),
-        dag: data.dag,
-      };
-      setWorkflows((prev) => [newWf, ...prev]);
-      toast("Đã tạo workflow (demo)!", "success");
-      return newWf;
+    } catch (err) {
+      toast(err.message || "Lỗi tạo workflow", "danger");
+      throw err;
     }
-  }, [current, toast, loadMetrics]);
+  }, [toast, loadMetrics]);
 
   const updateWorkflow = useCallback(async (workflowId, data) => {
     try {

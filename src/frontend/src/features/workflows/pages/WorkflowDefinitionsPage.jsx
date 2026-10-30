@@ -116,21 +116,88 @@ export default function WorkflowDefinitionsPage() {
     }
   };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const parsedDag = JSON.parse(newWfStepsJson);
-      createWorkflow({
-        name: newWfName.trim(),
-        description: newWfDesc.trim(),
-        dag: parsedDag,
+      let raw = (newWfStepsJson || "").trim();
+      if (!raw) {
+        toast("Vui lòng nhập định nghĩa DAG (JSON)!", "warning");
+        return;
+      }
+
+      // 1. Strip markdown fences if user copied from markdown (```json ... ```)
+      if (raw.includes("```")) {
+        const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (match) raw = match[1].trim();
+      }
+
+      // 2. Extract JSON substring if surrounded by explanation text
+      const firstBrace = raw.indexOf("{");
+      const firstBracket = raw.indexOf("[");
+      let startIdx = -1;
+      if (firstBrace !== -1 && firstBracket !== -1) {
+        startIdx = Math.min(firstBrace, firstBracket);
+      } else {
+        startIdx = Math.max(firstBrace, firstBracket);
+      }
+      if (startIdx > 0) {
+        raw = raw.slice(startIdx);
+      }
+      const lastBrace = raw.lastIndexOf("}");
+      const lastBracket = raw.lastIndexOf("]");
+      const endIdx = Math.max(lastBrace, lastBracket);
+      if (endIdx !== -1 && endIdx < raw.length - 1) {
+        raw = raw.slice(0, endIdx + 1);
+      }
+
+      // 3. Remove trailing line-continuation backslashes commonly copied from prompt / shell
+      raw = raw.replace(/\\+(\r?\n|$)/g, "\n");
+      // 4. Remove trailing commas before } or ]
+      raw = raw.replace(/,(\s*[}\]])/g, "$1");
+
+      const parsed = JSON.parse(raw);
+
+      let wfName = newWfName.trim();
+      let wfDesc = newWfDesc.trim();
+      let dagObj = parsed;
+
+      // Extract name/description from root JSON if not entered in form inputs
+      if (!Array.isArray(parsed) && typeof parsed === "object") {
+        if (!wfName && (parsed.name || parsed.workflowName || parsed.title)) {
+          wfName = (parsed.name || parsed.workflowName || parsed.title).trim();
+        }
+        if (!wfDesc && (parsed.description || parsed.desc || parsed.summary)) {
+          wfDesc = (parsed.description || parsed.desc || parsed.summary).trim();
+        }
+      }
+
+      // Normalize DAG structure
+      if (Array.isArray(parsed)) {
+        dagObj = { steps: parsed };
+      } else if (parsed.dag && Array.isArray(parsed.dag.steps)) {
+        dagObj = parsed.dag;
+      } else if (Array.isArray(parsed.steps)) {
+        dagObj = { steps: parsed.steps };
+      }
+
+      if (!wfName) {
+        wfName = "Custom-DAG-Workflow";
+      }
+
+      const res = await createWorkflow({
+        name: wfName,
+        description: wfDesc,
+        dag: dagObj,
       });
-      setShowCreateModal(false);
-      setNewWfName("");
-      setNewWfDesc("");
-      toast("Đã khởi tạo Workflow DAG thành công!", "success");
-    } catch {
-      toast("Định dạng JSON của DAG không hợp lệ!", "danger");
+
+      if (res && res.id) {
+        setShowCreateModal(false);
+        setNewWfName("");
+        setNewWfDesc("");
+        setSelectedWf(res);
+      }
+    } catch (err) {
+      toast("Lỗi định dạng hoặc biên dịch JSON DAG: " + (err.message || ""), "danger");
     }
   };
 

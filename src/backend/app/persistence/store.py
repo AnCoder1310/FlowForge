@@ -116,7 +116,7 @@ class InMemoryStore:
             ("worker-ai-01", "node-03.orchestrator.cluster", ["ai-agent"], 2),
             ("worker-data-01", "node-04.orchestrator.cluster", ["data-io"], 4),
             ("worker-payment-01", "node-05.orchestrator.cluster", ["payment", "inventory", "logistics", "documents"], 2),
-            ("worker-node-compute-01", "legacy.orchestrator.cluster", ["default", "compute", "data-io", "payment", "ai-agent"], 16),
+            ("worker-node-compute-01", "legacy.orchestrator.cluster", ["default", "compute", "data-io", "payment", "ai-agent", "notification"], 16),
         ]
         for wid, host, queues, max_c in seed_workers:
             self._worker_seq += 1
@@ -435,13 +435,18 @@ class InMemoryStore:
                 return None
 
             allowed_queues = set(queues) if queues else {"default"}
+            if "default" in allowed_queues:
+                allowed_queues.add("notification")
             now = datetime.now(timezone.utc)
             now_iso = now.isoformat()
 
             # 2. Sort by scheduledAt, then id (Fair FIFO)
             candidates = [
                 t for t in self.tasks.values()
-                if t.status == StepStatus.SCHEDULED and t.queueName in allowed_queues
+                if t.status == StepStatus.SCHEDULED and (
+                    t.queueName in allowed_queues or
+                    ("default" in allowed_queues and t.queueName not in {"compute", "data-io", "payment", "ai-agent"})
+                )
             ]
             candidates.sort(key=lambda x: (x.scheduledAt or now, x.id))
 

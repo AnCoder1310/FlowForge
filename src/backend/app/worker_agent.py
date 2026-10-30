@@ -281,8 +281,8 @@ def execute_step_logic(
             "persistedAt": datetime.now(timezone.utc).isoformat(),
         }
 
-    # 7. step-notify-report-ready (NOTIFICATION, queue: notification)
-    elif step_id == "step-notify-report-ready":
+    # 7. step-notify-report-ready & step-notify-dispatch (NOTIFICATION, queue: notification)
+    elif step_id in ("step-notify-report-ready", "step-notify-dispatch") or task.get("taskType") == "NOTIFICATION":
         safe_log(f"   [NOTIFICATION DISPATCH] Dispatched report ready notification to stakeholders")
         return {
             "status": "SUCCESS",
@@ -503,8 +503,11 @@ def run_cluster(worker_configs: List[dict]):
 
 
 def run_single(worker_id: str, queues: List[str], concurrency: int = 4):
+    if "default" in queues and "notification" not in queues:
+        queues.append("notification")
     safe_log("==========================================================")
     safe_log(f"  FlowForge Single Worker Agent: {worker_id}")
+    safe_log(f"  Hàng đợi phụ trách: {", ".join(queues)}")
     safe_log("==========================================================")
     w = WorkerNodeDaemon(worker_id=worker_id, queues=queues, max_concurrency=concurrency)
     w.loop()

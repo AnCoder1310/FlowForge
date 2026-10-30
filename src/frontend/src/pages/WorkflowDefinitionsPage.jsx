@@ -30,20 +30,72 @@ export default function WorkflowDefinitionsPage() {
     setTriggerModalWf(null);
   };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const parsedDag = JSON.parse(newWfStepsJson);
-      createWorkflow({
-        name: newWfName.trim(),
-        description: newWfDesc.trim(),
-        dag: parsedDag,
+      let raw = (newWfStepsJson || "").trim();
+      if (!raw) {
+        toast("Vui lòng nhập định nghĩa DAG (JSON)!", "warning");
+        return;
+      }
+      if (raw.includes("```")) {
+        const match = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (match) raw = match[1].trim();
+      }
+      const firstBrace = raw.indexOf("{");
+      const firstBracket = raw.indexOf("[");
+      let startIdx = -1;
+      if (firstBrace !== -1 && firstBracket !== -1) {
+        startIdx = Math.min(firstBrace, firstBracket);
+      } else {
+        startIdx = Math.max(firstBrace, firstBracket);
+      }
+      if (startIdx > 0) raw = raw.slice(startIdx);
+      const lastBrace = raw.lastIndexOf("}");
+      const lastBracket = raw.lastIndexOf("]");
+      const endIdx = Math.max(lastBrace, lastBracket);
+      if (endIdx !== -1 && endIdx < raw.length - 1) raw = raw.slice(0, endIdx + 1);
+
+      raw = raw.replace(/\\+(\r?\n|$)/g, "\n");
+      raw = raw.replace(/,(\s*[}\]])/g, "$1");
+
+      const parsed = JSON.parse(raw);
+      let wfName = newWfName.trim();
+      let wfDesc = newWfDesc.trim();
+      let dagObj = parsed;
+
+      if (!Array.isArray(parsed) && typeof parsed === "object") {
+        if (!wfName && (parsed.name || parsed.workflowName || parsed.title)) {
+          wfName = (parsed.name || parsed.workflowName || parsed.title).trim();
+        }
+        if (!wfDesc && (parsed.description || parsed.desc || parsed.summary)) {
+          wfDesc = (parsed.description || parsed.desc || parsed.summary).trim();
+        }
+      }
+
+      if (Array.isArray(parsed)) {
+        dagObj = { steps: parsed };
+      } else if (parsed.dag && Array.isArray(parsed.dag.steps)) {
+        dagObj = parsed.dag;
+      } else if (Array.isArray(parsed.steps)) {
+        dagObj = { steps: parsed.steps };
+      }
+
+      if (!wfName) wfName = "Custom-DAG-Workflow";
+
+      const res = await createWorkflow({
+        name: wfName,
+        description: wfDesc,
+        dag: dagObj,
       });
-      setShowCreateModal(false);
-      setNewWfName("");
-      setNewWfDesc("");
-    } catch {
-      alert("Định dạng JSON của DAG không hợp lệ!");
+
+      if (res && res.id) {
+        setShowCreateModal(false);
+        setNewWfName("");
+        setNewWfDesc("");
+      }
+    } catch (err) {
+      toast("Lỗi JSON DAG: " + (err.message || ""), "danger");
     }
   };
 
