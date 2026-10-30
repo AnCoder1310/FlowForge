@@ -1,7 +1,7 @@
 import { api } from "../../../lib/api";
 
 /**
- * GET /audit-logs
+ * GET /audit
  * @param {{page?: number, pageSize?: number, action?: string, module?: string,
  *          actorUserId?: number, dateFrom?: string, dateTo?: string}} filters
  * @returns {Promise<{items: Array<{id: number, action: string, module: string, detail: string,
@@ -13,5 +13,5 @@ export function listAuditLogs({ page = 1, pageSize = 20, ...filters } = {}) {
   Object.entries(filters).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== "") qs.set(k, v);
   });
-  return api(`/audit-logs?${qs}`);
+  return api(`/audit?${qs}`);
 }

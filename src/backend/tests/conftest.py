@@ -1,11 +1,23 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 from app.core.security import TokenService
+from app.persistence.store import store, InMemoryStore
 from app.main import app
 
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+@pytest.fixture(autouse=True)
+def reset_store():
+    fresh = InMemoryStore()
+    store.users = fresh.users
+    store.workflows = fresh.workflows
+    store.instances = fresh.instances
+    store.tasks = fresh.tasks
+    store.workers = fresh.workers
+    store.audits = fresh.audits
+    yield
 
 @pytest.fixture
 async def client():

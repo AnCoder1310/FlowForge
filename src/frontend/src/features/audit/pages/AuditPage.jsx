@@ -7,23 +7,35 @@ import { useAuditLogs } from "../hooks/useAuditLogs";
 
 const ACT = {
   LOGIN: ["neutral", "Đăng nhập"],
+  LOGOUT: ["neutral", "Đăng xuất"],
   INSERT: ["ok", "Tạo mới"],
   CREATE: ["ok", "Tạo mới"],
-  LOGOUT: ["neutral", "Đăng xuất"],
+  CREATE_WORKFLOW: ["ok", "Tạo workflow"],
   UPDATE: ["info", "Cập nhật"],
-  IMPORT: ["warn", "Nhập file"],
+  UPDATE_WORKFLOW: ["info", "Cập nhật workflow"],
   DELETE: ["fail", "Xóa"],
+  DELETE_WORKFLOW: ["fail", "Xóa workflow"],
+  TRIGGER: ["ok", "Kích hoạt"],
+  TRIGGER_RUN: ["ok", "Kích hoạt"],
+  CANCEL: ["fail", "Hủy lượt chạy"],
+  CANCEL_RUN: ["fail", "Hủy lượt chạy"],
+  SKIP: ["warn", "Bỏ qua step"],
+  SKIP_TASK: ["warn", "Bỏ qua step"],
+  RETRY: ["info", "Thử lại"],
+  RETRY_TASK: ["info", "Thử lại"],
+  FAIL: ["fail", "Thất bại"],
+  FAIL_TASK: ["fail", "Thất bại"],
+  IMPORT: ["warn", "Nhập file"],
   EXPORT: ["ok", "Xuất file"],
 };
 
 const PAGE_SIZE = 20;
 
 function fmtTime(iso) {
+  if (!iso) return "—";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-
+  if (Number.isNaN(d.getTime())) return String(iso);
   const p = (n) => String(n).padStart(2, "0");
-
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
@@ -37,10 +49,10 @@ export default function AuditPage() {
   const [page, setPage] = useState(1);
 
   const {
-    items,
-    meta,
-    loading,
-    error,
+    items = [],
+    meta = { page: 1, pageSize: 20, totalItems: 0, totalPages: 1 },
+    loading = false,
+    error = "",
     refresh,
   } = useAuditLogs(
     { action, dateFrom, dateTo },
@@ -53,30 +65,38 @@ export default function AuditPage() {
     setPage(1);
   };
 
+  const getUserName = (userId) => {
+    if (typeof userName === "function") {
+      try {
+        return userName(userId);
+      } catch {
+        // fallback
+      }
+    }
+    const u = users?.find((x) => x.id === userId);
+    return u?.name || u?.fullName || (userId ? `Người dùng #${userId}` : "Hệ thống");
+  };
+
   const rows = useMemo(() => {
     const qq = q.trim().toLowerCase();
+    const list = Array.isArray(items) ? items : [];
 
-    return items
+    return list
       .map((a) => {
-        const user =
-          a.actorName || userName(a.actorUserId);
+        const user = a.actorName || getUserName(a.actorUserId);
+        const userObj = users?.find((u) => u.id === a.actorUserId);
+        const userRole = a.actorUserId === current?.id
+          ? current?.role
+          : userObj?.role;
 
         return {
-          id: "LOG-" + String(a.id).padStart(3, "0"),
-          user:
-            user === "—"
-              ? `Người dùng #${a.actorUserId}`
-              : user,
-          role:
-            a.actorUserId === current?.id
-              ? roleUi(current.role)
-              : roleUi(
-                  users.find((u) => u.id === a.actorUserId)?.role
-                ),
-          action: String(a.action).toUpperCase(),
-          module: a.module,
-          detail: a.detail,
-          time: fmtTime(a.changedAt),
+          id: "LOG-" + String(a.id || 0).padStart(3, "0"),
+          user: user === "—" ? `Người dùng #${a.actorUserId}` : user,
+          role: roleUi(userRole || "ADMIN"),
+          action: String(a.action || "INFO").toUpperCase(),
+          module: a.module || "Hệ thống",
+          detail: a.detail || "—",
+          time: fmtTime(a.changedAt || a.createdAt),
         };
       })
       .filter(
@@ -89,20 +109,20 @@ export default function AuditPage() {
   }, [items, q, users, userName, current]);
 
   const uniqueUsers = new Set(
-    items.map((a) => a.actorUserId)
+    (items || []).map((a) => a.actorUserId).filter(Boolean)
   ).size;
 
   const kpis = [
     {
       label: "Tổng số nhật ký",
-      value: meta.totalItems ?? 0,
+      value: meta?.totalItems ?? (items?.length || 0),
       icon: "file-text",
       color: "blue",
       description: "Toàn bộ hệ thống",
     },
     {
       label: "Nhật ký trang này",
-      value: items.length,
+      value: items?.length || 0,
       icon: "activity",
       color: "green",
       description: "Bản ghi hiện tại",
@@ -1004,11 +1024,11 @@ export default function AuditPage() {
         </div>
 
         {/* PAGINATION */}
-        {meta.totalPages > 1 && (
+        {(meta?.totalPages || 0) > 1 && (
           <div className="audit-pagination">
             <span>
-              Trang <strong>{meta.page}</strong> /{" "}
-              <strong>{meta.totalPages}</strong>
+              Trang <strong>{meta?.page || 1}</strong> /{" "}
+              <strong>{meta?.totalPages || 1}</strong>
             </span>
 
             <div className="audit-pagination-actions">
@@ -1023,7 +1043,7 @@ export default function AuditPage() {
 
               <button
                 type="button"
-                disabled={loading || page >= meta.totalPages}
+                disabled={loading || page >= (meta?.totalPages || 1)}
                 onClick={() => setPage((p) => p + 1)}
               >
                 Sau

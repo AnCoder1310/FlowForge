@@ -20,8 +20,15 @@ export function useAuditLogs(filters, page, pageSize = 20) {
     listAuditLogs({ page, pageSize, action, dateFrom, dateTo })
       .then((res) => {
         if (cancelled) return;
-        setItems(res.items);
-        setMeta(res.meta);
+        const loadedItems = res?.items || [];
+        const loadedMeta = res?.meta || {
+          page: res?.page || page,
+          pageSize: res?.pageSize || pageSize,
+          totalItems: res?.totalItems ?? loadedItems.length,
+          totalPages: res?.totalPages || 1,
+        };
+        setItems(loadedItems);
+        setMeta(loadedMeta);
       })
       .catch((e) => {
         if (!cancelled) setError(e.message);

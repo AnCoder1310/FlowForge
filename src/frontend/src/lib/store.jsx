@@ -86,6 +86,15 @@ export function FinanceProvider({ children }) {
 
   const can = useCallback((perm) => canPerm(current, perm), [current]);
 
+  const userName = useCallback(
+    (userId) => {
+      const u = users.find((x) => x.id === userId);
+      return u ? u.name || u.fullName : (userId ? `Người dùng #${userId}` : "Hệ thống");
+    },
+    [users]
+  );
+
+
   // Load from API with graceful fallback to sample state
   const loadWorkflows = useCallback(async () => {
     try {
@@ -290,6 +299,7 @@ export function FinanceProvider({ children }) {
       login,
       logout,
       can,
+      userName,
       workflows,
       executions,
       workers,
@@ -315,6 +325,7 @@ export function FinanceProvider({ children }) {
       login,
       logout,
       can,
+      userName,
       workflows,
       executions,
       workers,
