@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowForge: AI-Powered Workflow Orchestration — 16:9 Architecture Slide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;650;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    /* ==============================================================
+       16:9 PRESENTATION CANVAS & DESIGN TOKENS
+       ============================================================== */
+    :root {
+      --dash-primary: #0891b2;
+      --dash-primary-dark: #0e7490;
+      --dash-primary-light: #ecfeff;
+      --dash-text: #0f172a;
+      --dash-muted: #64748b;
+      --dash-border: #e2e8f0;
+      --dash-bg: #f8fafc;
+      --dash-card: #ffffff;
+      --dash-blue: #2563eb;
+      --dash-purple: #7c3aed;
+      --dash-emerald: #10b981;
+      --dash-amber: #f59e0b;
+      --dash-rose: #ef4444;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #0b0f19;
+      font-family: var(--font-sans);
+      color: var(--dash-text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 20px;
+    }
+
+    /* Fixed 16:9 Canvas Frame (1920x1080) */
+    .slide-wrapper {
+      width: 1920px;
+      height: 1080px;
+      max-width: 100vw;
+      max-height: 56.25vw;
+      background: var(--dash-bg);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 28px 44px 24px;
+      user-select: none;
+    }
+
+    /* Scaled mode for smaller screens */
+    @media (max-width: 1920px) {
+      .slide-viewport {
+        transform-origin: top center;
+      }
+    }
+
+    /* ==============================================================
+       HEADER SECTION
+       ============================================================== */
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
+    .slide-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #ecfeff;
+      border: 1px solid #a5f3fc;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--dash-primary);
+      letter-spacing: 1.2px;
+      margin-bottom: 8px;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--dash-primary);
+      box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.2);
+    }
+
+    .slide-title {
+      font-size: 32px;
+      font-weight: 900;
+      color: var(--dash-text);
+      letter-spacing: -0.8px;
+      line-height: 1.2;
+    }
+
+    .slide-subtitle {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--dash-muted);
+      margin-top: 4px;
+    }
+
+    .header-specs {
+      display: flex;
+      gap: 10px;
+    }
+
+    .spec-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .spec-pill.blue { background: #eff6ff; color: var(--dash-blue); border: 1px solid #bfdbfe; }
+    .spec-pill.purple { background: #f5f3ff; color: var(--dash-purple); border: 1px solid #ddd6fe; }
+    .spec-pill.emerald { background: #ecfdf5; color: var(--dash-emerald); border: 1px solid #a7f3d0; }
+
+    /* Core Message Callout */
+    .core-message-bar {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 16px;
+      background: #ffffff;
+      border: 1px solid var(--dash-border);
+      border-radius: 8px;
+      font-size: 12.5px;
+    }
+
+    .core-msg-tag {
+      font-weight: 800;
+      color: var(--dash-primary-dark);
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .core-msg-text {
+      color: #334155;
+      font-weight: 500;
+    }
+
+    /* ==============================================================
+       MAIN ARCHITECTURE SECTION (7 LAYERS + FEEDBACK CHANNEL)
+       ============================================================== */
+    .architecture-container {
+      display: flex;
+      gap: 16px;
+      margin: 12px 0;
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
+
+    .layers-stack {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      justify-content: space-between;
+    }
+
+    /* Individual Layer Row Card */
+    .layer-card {
+      background: #ffffff;
+      border: 1px solid var(--dash-border);
+      border-radius: 10px;
+      padding: 8px 18px;
+      display: grid;
+      grid-template-columns: 280px 1fr 690px;
+      gap: 18px;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+      position: relative;
+      transition: all 0.2s ease;
+      min-height: 98px;
+    }
+
+    .layer-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+    }
+
+    .layer-card.core-engine {
+      border: 2px solid var(--dash-primary);
+      background: #ffffff;
+      box-shadow: 0 4px 18px rgba(8, 145, 178, 0.08);
+    }
+
+    /* Left: Badge & Titles */
+    .layer-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .layer-badge-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+
+    .layer-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      width: fit-content;
+    }
+
+    .layer-code-ref {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      color: var(--dash-primary-dark);
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    .layer-impl-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 8px;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+
+    .layer-impl-badge.impl {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+    }
+
+    .layer-impl-badge.progress {
+      background: #f5f3ff;
+      color: #6d28d9;
+      border: 1px solid #ddd6fe;
+    }
+
+    .layer-card:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 6px solid #0891b2;
+      z-index: 5;
+    }
+
+    .badge-cyan { background: #ecfeff; color: var(--dash-primary); border: 1px solid #cffafe; }
+    .badge-purple { background: #f5f3ff; color: var(--dash-purple); border: 1px solid #ddd6fe; }
+    .badge-blue { background: #eff6ff; color: var(--dash-blue); border: 1px solid #bfdbfe; }
+    .badge-emerald { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+    .badge-dark { background: #0f172a; color: #ffffff; }
+
+    .layer-title {
+      font-size: 15px;
+      font-weight: 850;
+      color: var(--dash-text);
+      line-height: 1.25;
+    }
+
+    .layer-sub {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--dash-primary-dark);
+    }
+
+    /* Center: Concise Explanation */
+    .layer-desc {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 11.5px;
+      color: #334155;
+      line-height: 1.45;
+    }
+
+    .layer-desc strong {
+      color: #0f172a;
+      font-size: 12.5px;
+    }
+
+    .layer-bullets {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5px;
+      color: #64748b;
+      font-size: 11px;
+      margin-top: 1px;
+    }
+
+    .layer-bullets span {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .bullet-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--dash-primary);
+      flex-shrink: 0;
+    }
+
+    /* Right: Visual Mini-Diagram Container */
+    .layer-visual {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 6px 12px;
+      height: 82px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+
+    /* Visual elements styling */
+    .prompt-bubble {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .user-avatar-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #ecfeff;
+      border: 1.5px solid #a5f3fc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--dash-primary);
+      flex-shrink: 0;
+    }
+
+    .prompt-content {
+      flex: 1;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+
+    .prompt-text {
+      font-size: 11.5px;
+      font-weight: 650;
+      color: #0f172a;
+    }
+
+    .prompt-meta {
+      font-size: 9.5px;
+      color: var(--dash-primary);
+      font-family: var(--font-mono);
+      margin-top: 2px;
+    }
+
+    /* Mini DAG Graph */
+    .dag-preview {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 6px;
+    }
+
+    .dag-node {
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 5px 8px;
+      display: flex;
+      flex-direction: column;
+      min-width: 105px;
+    }
+
+    .dag-node.http { border-color: #0891b2; }
+    .dag-node.worker { border-color: #2563eb; }
+    .dag-node.ai { border-color: #7c3aed; }
+    .dag-node.notify { border-color: #10b981; }
+
+    .dag-node-title {
+      font-size: 10px;
+      font-weight: 800;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+
+    .dag-node-sub {
+      font-size: 8px;
+      font-family: var(--font-mono);
+      color: #64748b;
+    }
+
+    .dag-connector {
+      color: #94a3b8;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    /* Kahn Staging visual */
+    .kahn-preview {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 10px;
+    }
+
+    .kahn-box {
+      flex: 1;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+
+    .kahn-box.pass {
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+
+    /* Worker Queue Nodes */
+    .worker-queues-preview {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 6px;
+    }
+
+    .orchestrator-core-chip {
+      background: #0f172a;
+      color: #ffffff;
+      border-radius: 6px;
+      padding: 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 110px;
+    }
+
+    .queue-chip {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      padding: 4px 6px;
+      text-align: center;
+      min-width: 90px;
+    }
+
+    .queue-chip-title {
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--dash-primary);
+    }
+
+    .queue-chip-bar {
+      height: 4px;
+      background: #e2e8f0;
+      border-radius: 2px;
+      margin: 3px 0;
+      overflow: hidden;
+    }
+
+    .queue-chip-fill {
+      height: 100%;
+      background: #10b981;
+    }
+
+    .queue-chip-status {
+      font-size: 7.5px;
+      color: #64748b;
+      font-family: var(--font-mono);
+    }
+
+    /* AI Diagnosis Card Visual */
+    .ai-diag-preview {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .log-box {
+      flex: 1;
+      background: #0f172a;
+      color: #f87171;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      line-height: 1.35;
+    }
+
+    .ai-rca-box {
+      flex: 1.4;
+      background: #fbf7ff;
+      border: 1px solid #ddd6fe;
+      border-radius: 6px;
+      padding: 6px 10px;
+    }
+
+    /* Self Healing Visual */
+    .healing-preview {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .healing-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 5px;
+      padding: 4px 8px;
+      font-size: 9px;
+    }
+
+    .healing-tag {
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-size: 8.5px;
+    }
+
+    .healing-tag.auto { background: #ecfdf5; color: #047857; }
+    .healing-tag.manual { background: #f5f3ff; color: #6d28d9; }
+
+    /* Monitoring Telemetry Visual */
+    .telemetry-preview {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 8px;
+    }
+
+    .telemetry-stat {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 5px 8px;
+      text-align: center;
+      flex: 1;
+    }
+
+    .stat-label { font-size: 8px; font-weight: 750; color: #64748b; }
+    .stat-val { font-size: 15px; font-weight: 900; color: #0f172a; }
+
+    /* ==============================================================
+       RIGHT FEEDBACK CHANNEL
+       ============================================================== */
+    .feedback-column {
+      width: 175px;
+      background: #ffffff;
+      border: 1.5px solid #cffafe;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 12px 10px;
+      box-shadow: 0 4px 14px rgba(8, 145, 178, 0.05);
+      position: relative;
+    }
+
+    .feedback-header {
+      background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+      color: #ffffff;
+      padding: 6px 8px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .feedback-header h4 { font-size: 10px; font-weight: 850; letter-spacing: 0.5px; }
+    .feedback-header p { font-size: 8px; color: #cffafe; margin-top: 1px; }
+
+    .feedback-step {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 8.5px;
+      text-align: center;
+    }
+
+    .feedback-step.engine {
+      border-color: #bfdbfe;
+      background: #eff6ff;
+    }
+
+    .feedback-step.prompt {
+      border-color: #ddd6fe;
+      background: #f5f3ff;
+    }
+
+    .feedback-arrow-indicator {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--dash-purple);
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    /* ==============================================================
+       BOTTOM TAKEAWAY BANNER
+       ============================================================== */
+    .slide-footer {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 14px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide-footer::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #0891b2 0%, #2563eb 50%, #7c3aed 100%);
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .takeaway-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(8, 145, 178, 0.2);
+      border: 1px solid #0891b2;
+      color: #cffafe;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      white-space: nowrap;
+    }
+
+    .takeaway-quote {
+      color: #ffffff;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+    }
+
+    .takeaway-sub {
+      color: #94a3b8;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .footer-tags {
+      display: flex;
+      gap: 8px;
+    }
+
+    .footer-tag {
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e2e8f0;
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* Print / Slide Export Settings */
+    @media print {
+      @page {
+        size: 1920px 1080px landscape;
+        margin: 0;
+      }
+      body {
+        background: transparent;
+        padding: 0;
+      }
+      .slide-wrapper {
+        border-radius: 0;
+        box-shadow: none;
+        max-width: 100%;
+        max-height: 100%;
+        width: 100vw;
+        height: 100vh;
+      }
+      .floating-controls {
+        display: none !important;
+      }
+    }
+
+    /* Floating Control Toolbar */
+    .floating-controls {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      gap: 8px;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(8px);
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+
+    .ctrl-btn {
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1px solid #475569;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .ctrl-btn:hover {
+      background: #0891b2;
+      border-color: #0891b2;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 16:9 WIDESCREEN PRESENTATION SLIDE -->
+  <div class="slide-wrapper" id="presentation-slide">
+    
+    <!-- ========================================================== -->
+    <!-- SLIDE HEADER -->
+    <!-- ========================================================== -->
+    <header class="slide-header">
+      <div>
+        <div class="slide-eyebrow">
+          <span class="live-dot"></span>
+          FLOWFORGE SYSTEM ARCHITECTURE &bull; UNIVERSITY PROJECT SPECIFICATION
+        </div>
+        <h1 class="slide-title">FlowForge: AI-Powered Workflow Orchestration</h1>
+        <p class="slide-subtitle">From natural-language instructions to intelligent, distributed, and self-healing workflow execution.</p>
+      </div>
+
+      <div class="header-specs">
+        <div class="spec-pill blue">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          Kahn DAG Engine: O(V+E)
+        </div>
+        <div class="spec-pill purple">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>
+          9Router AI Copilot
+        </div>
+        <div class="spec-pill emerald">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+          5 Isolated Worker Queues
+        </div>
+      </div>
+    </header>
+
+    <!-- CORE ARCHITECTURAL PRINCIPLE -->
+    <div class="core-message-bar">
+      <span class="core-msg-tag">CORE ARCHITECTURAL PRINCIPLE:</span>
+      <span class="core-msg-text">FlowForge uses AI to help users create workflows, understand execution failures, and recover from errors, while a distributed orchestration engine manages dependencies, scheduling, and worker execution.</span>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- MAIN 7-LAYER ARCHITECTURE & FEEDBACK CHANNEL -->
+    <!-- ========================================================== -->
+    <main class="architecture-container">
+      
+      <!-- 7 LAYERS STACK -->
+      <div class="layers-stack">
+
+        <!-- LAYER 1: NATURAL-LANGUAGE INPUT -->
+        <article class="layer-card">
+          <div class="layer-meta">
+            <div class="layer-badge-row">
+              <span class="layer-badge badge-cyan">LAYER 1 &bull; UI</span>
+              <span class="layer-impl-badge impl">[Implemented]</span>
+            </div>
+            <h3 class="layer-title">Natural-Language Input</h3>
+            <span class="layer-code-ref">WorkflowStudio &bull; Prompt Modal</span>
+          </div>
+
+          <div class="layer-desc">
+            <strong>User describes a task in plain English.</strong>
+            <p>Eliminates boilerplate scripts, complex YAML authoring, and manual schema composition.</p>
+            <div class="layer-bullets">
+              <span><span class="bullet-dot"></span> Conversational intent extraction with automatic queue and timeout heuristic inference.</span>
+              <span><span class="bullet-dot"></span> Supported via Web Studio GUI, FastAPI endpoint, and programmatic CLI.</span>
+            </div>
+          </div>
+
+          <div class="layer-visual">
+            <div class="prompt-bubble">
+              <div class="user-avatar-badge">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              </div>
+              <div class="prompt-content">
+                <div class="prompt-text">&ldquo;Process customer orders, validate payments, and update inventory.&rdquo;</div>
+                <div class="prompt-meta">Input: Natural Language (EN) &bull; Intent: Parallel E-Commerce Pipeline &bull; Max Latency: 120s</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- LAYER 2: AI PROMPT-TO-DAG -->
+        <article class="layer-card">
+          <div class="layer-meta">
+            <div class="layer-badge-row">
+              <span class="layer-badge badge-purple">LAYER 2 &bull; AI</span>
+              <span class="layer-impl-badge impl">[Implemented]</span>
+            </div>
+            <h3 class="layer-title">AI Prompt-to-DAG</h3>
+            <span class="layer-code-ref">ai_service.py &bull; /ai/generate-workflow</span>
+          </div>
+
+          <div class="layer-desc">
+            <strong>Converts the user’s description into a structured Directed Acyclic Graph (DAG).</strong>
+            <p>Generates step IDs, assigns task types, timeout budgets, and determines prerequisite links.</p>
+            <div class="layer-bullets">
+              <span><span class="bullet-dot"></span> Generates explicit <code>dependsOn</code> arrays enabling parallel split and convergent join stages.</span>
+              <span><span class="bullet-dot"></span> Maps task semantics to specialized queues: <code>default</code>, <code>compute</code>, <code>payment</code>, <code>data-io</code>.</span>
+            </div>
+          </div>
+
+          <div class="layer-visual">
+            <div class="dag-preview">
+              <div class="dag-node http">
+                <span class="dag-node-title">receive-order</span>
+                <span class="dag-node-sub">HTTP &bull; default</span>
+              </div>
+              <span class="dag-connector">&rarr;</span>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <div class="dag-node worker" style="min-width:115px; border-style:dashed;">
+                  <span class="dag-node-title">check-payment</span>
+                  <span class="dag-node-sub">[PARALLEL] &bull; payment</span>
+                </div>
+                <div class="dag-node worker" style="min-width:115px; border-style:dashed;">
+                  <span class="dag-node-title">check-inventory</span>
+                  <span class="dag-node-sub">[PARALLEL] &bull; data-io</span>
+                </div>
+              </div>
+              <span class="dag-connector">&rarr;</span>
+              <div class="dag-node ai">
+                <span class="dag-node-title">ai-fraud-eval</span>
+                <span class="dag-node-sub">AI_AGENT &bull; ai-agent</span>
+              </div>
+              <span class="dag-connector">&rarr;</span>
+              <div class="dag-node notify">
+                <span class="dag-node-title">notify-customer</span>
+                <span class="dag-node-sub">ALERT &bull; notification</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- LAYER 3: WORKFLOW VALIDATION AND PLANNING -->
+        <article class="layer-card">
+          <div class="layer-meta">
+            <div class="layer-badge-row">
+              <span class="layer-badge badge-blue">LAYER 3 &bull; DAG</span>
+              <span class="layer-impl-badge impl">[Implemented]</span>
+            </div>
+            <h3 class="layer-title">Validation &amp; Planning</h3>
+            <span class="layer-code-ref">dag_engine.py &bull; Kahn's O(V+E) Algo</span>
+          </div>
+
+          <div class="layer-desc">
+            <strong>Validates the DAG, checks task dependencies, and detects circular deadlocks.</strong>
+            <p>Tasks with unresolved prerequisites wait; tasks with zero in-degrees are scheduled immediately.</p>
+            <div class="layer-bullets">
+              <span><span class="bullet-dot"></span> Kahn's $O(V+E)$ algorithm guarantees zero circular cycles before saving to PostgreSQL.</span>
+              <span><span class="bullet-dot"></span> Determines topological execution levels, enabling predictable multi-worker concurrency.</span>
+            </div>
+          </div>
+
+          <div class="layer-visual">
+            <div class="kahn-preview">
+              <div class="kahn-box">
+                <div style="font-size:9.5px; font-weight:800; color:#059669;">STAGE 1: ROOT TASK</div>
+                <div style="font-size:9px; font-family:var(--font-mono); color:#475569;">inDegree[receive] = 0</div>
+                <span style="font-size:8px; font-weight:800; color:#059669; background:#ecfdf5; padding:1px 4px; border-radius:3px;">SCHEDULED</span>
+              </div>
+              <span class="dag-connector">&rarr;</span>
+              <div class="kahn-box">
+                <div style="font-size:9.5px; font-weight:800; color:#2563eb;">STAGE 2: PARALLEL TIERS</div>
+                <div style="font-size:9px; font-family:var(--font-mono); color:#475569;">Payment || Inventory</div>
+                <span style="font-size:8px; color:#64748b;">Barrier: Wait on Stage 1</span>
+              </div>
+              <span class="dag-connector">&rarr;</span>
+              <div class="kahn-box pass">
+                <div style="font-size:9.5px; font-weight:800; color:#065f46;">CYCLE DETECTION</div>
+                <div style="font-size:11px; font-weight:900; color:#059669;">PASS &bull; 0 CYCLES</div>
+                <span style="font-size:8px; color:#059669; font-weight:700;">Deterministic Staging</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- LAYER 4: DISTRIBUTED ORCHESTRATION ENGINE (CORE) -->
+        <article class="layer-card core-engine">
+          <div class="layer-meta">
+            <div class="layer-badge-row">
+              <span class="layer-badge badge-dark">LAYER 4 &bull; CORE</span>
+              <span class="layer-impl-badge impl">[Implemented]</span>
+            </div>
+            <h3 class="layer-title" style="color:var(--dash-primary-dark);">Distributed Orchestration</h3>
+            <span class="layer-code-ref">ExecutionService &amp; WorkerService</span>
+          </div>
+
+          <div class="layer-desc">
+            <strong>Schedules tasks, manages states, and dispatches tasks to available worker nodes.</strong>
+            <p>Dependency-aware scheduling with atomic task claiming, concurrency limits, and 30s heartbeat leasing.</p>
+            <div class="layer-bullets">
+              <span><span class="bullet-dot"></span> Prevents worker race conditions; automatically cascades <code>SKIPPED</code> status on unmet conditions.</span>
+              <span><span class="bullet-dot"></span> Routes tasks across 5 isolated queues according to payload compute characteristics.</span>
+            </div>
+          </div>
+
+          <div class="layer-visual">
+            <div class="worker-queues-preview">
+              <div class="orchestrator-core-chip">
+                <span style="font-size:9.5px; font-weight:900; color:#38bdf8;">ORCHESTRATOR</span>
+                <span style="font-size:8px; color:#cbd5e1; font-family:var(--font-mono);">Kahn Dispatcher</span>
+                <span style="font-size:7.5px; color:#34d399; font-weight:700;">State: Live Polling</span>
+              </div>
+              
+              <div class="queue-chip">
+                <div class="queue-chip-title">default</div>
+                <div class="queue-chip-bar"><div class="queue-chip-fill" style="width:65%;"></div></div>
+                <div class="queue-chip-status">HTTP / Webhook</div>
+              </div>
+
+              <div class="queue-chip">
+                <div class="queue-chip-title" style="color:#2563eb;">compute</div>
+                <div class="queue-chip-bar"><div class="queue-chip-fill" style="width:80%; background:#2563eb;"></div></div>
+                <div class="queue-chip-status">Spark / High-CPU</div>
+              </div>
+
+              <div class="queue-chip">
+                <div class="queue-chip-title" style="color:#7c3aed;">ai-agent</div>
+                <div class="queue-chip-bar"><div class="queue-chip-fill" style="width:40%; background:#7c3aed;"></div></div>
+                <div class="queue-chip-status">LLM Reasoning</div>
+              </div>
+
+              <div class="queue-chip">
+                <div class="queue-chip-title" style="color:#0d9488;">data-io</div>
+                <div class="queue-chip-bar"><div class="queue-chip-fill" style="width:55%; background:#0d9488;"></div></div>
+                <div class="queue-chip-status">Parquet / Warehouse</div>
+              </div>
+
+              <div class="queue-chip">
+                <div class="queue-chip-title" style="color:#d97706;">notification</div>
+                <div class="queue-chip-bar"><div class="queue-chip-fill" style="width:30%; background:#f59e0b;"></div></div>
+                <div class="queue-chip-status">Slack / SMS / Email</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- LAYER 5: AI COPILOT & FAILURE DIAGNOSIS -->
+        <article class="layer-card">
+          <div class="layer-meta">
+            <div class="layer-badge-row">
+              <span class="layer-badge badge-purple">LAYER 5 &bull; AI</span>
+              <span class="layer-impl-badge impl">[Implemented]</span>
+            </div>
+            <h3 class="layer-title">AI Copilot &amp; Diagnosis</h3>
+            <span class="layer-code-ref">ai_service.py &bull; /ai/diagnose-failure</span>
+          </div>
+
+          <div class="layer-desc">
+            <strong>Assists users throughout design and execution: log analysis, RCA, and corrective plans.</strong>
+            <p>Ingests task execution stack traces, timeout events, and worker errors via 9Router LLM.</p>
+            <div class="layer-bullets">
+              <span><span class="bullet-dot"></span> Evaluates severity (<code>HIGH</code> vs <code>WARNING</code>) and separates network glitches from DAG bugs.</span>
+              <span><span class="bullet-dot"></span> Synthesizes concrete suggested fixes and self-healing action plans for immediate remediation.</span>
+            </div>
+          </div>
+
+          <div class="layer-visual">
+            <div class="ai-diag-preview">
+              <div class="log-box">
+                <div>[ERROR] step-payment</div>
+                <div style="color:#fca5a5;">HTTP 504: Gateway Timeout</div>
+                <div style="color:#94a3b8;">Retries exhausted: 3/3</div>
+                <div style="color:#64748b;">Worker: node-02 &bull; 90.2s</div>
+              </div>
+              <span class="dag-connector">&rarr;</span>
+              <div class="ai-rca-box">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font-size:9px; font-weight:800; color:#6d28d9;">9ROUTER AI DIAGNOSIS</span>
+                  <span style="font-size:8px; font-weight:800; background:#fee2e2; color:#dc2626; padding:1px 4px; border-radius:3px;">HIGH SEVERITY</span>
+                </div>
+                <div style="font-size:9.5px; font-weight:700; color:#1e1b4b; margin:2px 0;">Root Cause: Upstream Payment Provider Rate-Limiting</div>
+                <div style="font-size:8.5px; color:#5b21b6; background:#ffffff; padding:2px 5px; border-radius:3px; border:1px solid #ddd6fe;">
+                  Fix: Exponential backoff with jitter + reroute to fallback gateway
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- LAYER 6: FAILURE SELF-HEALING AND OPTIMIZATION -->
+        <article class="layer-card">
+          <div class="layer-meta">
+            <div class="layer-badge-row">
+              <span class="layer-badge badge-emerald">LAYER 6 &bull; OPS</span>
+              <span class="layer-impl-badge progress">[Auto-Retry: Done &bull; Patch: Guided]</span>
+            </div>
+            <h3 class="layer-title">Self-Healing &amp; Recovery</h3>
+            <span class="layer-code-ref">ExecutionService &bull; Reclaim Loop</span>
+          </div>
+
+          <div class="layer-desc">
+            <strong>Uses failure insights to execute recoveries and improve system reliability.</strong>
+            <p>Distinguishes zero-touch automated recovery from user-reviewed architectural modifications.</p>
+            <div class="layer-bullets">
+              <span><span class="bullet-dot"></span> <strong>Automated:</strong> Task retries, circuit breaker checks, worker failover rerouting.</span>
+              <span><span class="bullet-dot"></span> <strong>User-Approved:</strong> AI-recommended DAG schema patches, timeout threshold adjustments.</span>
+            </div>
+          </div>
+
+          <div class="layer-visual">
+            <div class="healing-preview">
+              <div class="healing-row">
+                <span class="healing-tag auto">AUTOMATED ACTION</span>
+                <span style="font-weight:700; color:#0f172a;">Retry with Backoff + Reroute</span>
+                <span style="color:#64748b; font-family:var(--font-mono);">node-02 &rarr; node-05</span>
+                <span style="color:#059669; font-weight:800;">&check; Re-executed to Layer 4</span>
+              </div>
+              <div class="healing-row">
+                <span class="healing-tag manual">USER APPROVAL REQUIRED</span>
+                <span style="font-weight:700; color:#0f172a;">AI DAG Schema Optimization</span>
+                <span style="color:#64748b; font-family:var(--font-mono);">Insert Fallback Step</span>
+                <span style="color:#7c3aed; font-weight:800;">1-Click Modal Confirmed</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- LAYER 7: MONITORING AND FEEDBACK -->
+        <article class="layer-card">
+          <div class="layer-meta">
+            <div class="layer-badge-row">
+              <span class="layer-badge badge-cyan">LAYER 7 &bull; OBS</span>
+              <span class="layer-impl-badge impl">[Implemented]</span>
+            </div>
+            <h3 class="layer-title">Monitoring &amp; Feedback</h3>
+            <span class="layer-code-ref">ExecutionsPage &bull; Live Telemetry</span>
+          </div>
+
+          <div class="layer-desc">
+            <strong>Provides visibility into workflow status and feeds runtime history back into the system.</strong>
+            <p>Live execution progress, immutable audit trail logs, and queue backlog metrics.</p>
+            <div class="layer-bullets">
+              <span><span class="bullet-dot"></span> Real-time telemetry powers adaptive task dispatching and dynamic worker autoscaling.</span>
+              <span><span class="bullet-dot"></span> Feedback loop continuously refines prompt templates and AI failure prediction models.</span>
+            </div>
+          </div>
+
+          <div class="layer-visual">
+            <div class="telemetry-preview">
+              <div class="telemetry-stat">
+                <div class="stat-label">TOTAL RUNS</div>
+                <div class="stat-val" style="color:#2563eb;">142</div>
+              </div>
+              <div class="telemetry-stat">
+                <div class="stat-label">SUCCESS RATE</div>
+                <div class="stat-val" style="color:#059669;">98.4%</div>
+              </div>
+              <div class="telemetry-stat">
+                <div class="stat-label">ACTIVE WORKERS</div>
+                <div class="stat-val" style="color:#d97706;">5 Nodes</div>
+              </div>
+              <div class="telemetry-stat" style="flex:1.5;">
+                <div class="stat-label">STEP PROGRESS TRACKER</div>
+                <div style="font-size:11px; font-weight:800; color:#059669; margin:2px 0;">4/4 Steps Completed (100%)</div>
+                <div style="height:5px; background:#e2e8f0; border-radius:3px; overflow:hidden;">
+                  <div style="height:100%; width:100%; background:#10b981;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </div>
+
+      <!-- RIGHT CHANNEL: ASCENDING CLOSED-LOOP FEEDBACK -->
+      <aside class="feedback-column">
+        <div class="feedback-header">
+          <h4>CLOSED-LOOP</h4>
+          <p>FEEDBACK CHANNEL</p>
+        </div>
+
+        <div class="feedback-step prompt">
+          <div style="font-weight:800; color:#5b21b6; font-size:9px;">TO PROMPT AI (L2)</div>
+          <p style="color:#64748b; font-size:8px; margin-top:2px;">Prompt Template Tuning &bull; Learned Topologies</p>
+        </div>
+
+        <div class="feedback-arrow-indicator">&uarr;</div>
+
+        <div class="feedback-step engine">
+          <div style="font-weight:800; color:#1e40af; font-size:9px;">TO ENGINE (L4)</div>
+          <p style="color:#64748b; font-size:8px; margin-top:2px;">Dynamic Reschedule &bull; Self-Healing Failover</p>
+        </div>
+
+        <div class="feedback-arrow-indicator">&uarr;</div>
+
+        <div class="feedback-step" style="background:#ecfdf5; border-color:#a7f3d0;">
+          <div style="font-weight:800; color:#065f46; font-size:9px;">FROM HEALING (L6)</div>
+          <p style="color:#64748b; font-size:8px; margin-top:2px;">Root-Cause Actions &bull; Approved Patches</p>
+        </div>
+
+        <div class="feedback-arrow-indicator">&uarr;</div>
+
+        <div class="feedback-step" style="background:#ecfeff; border-color:#a5f3fc;">
+          <div style="font-weight:800; color:#0e7490; font-size:9px;">FROM METRICS (L7)</div>
+          <p style="color:#64748b; font-size:8px; margin-top:2px;">Live Telemetry &bull; Worker Backlog Data</p>
+        </div>
+      </aside>
+
+    </main>
+
+    <!-- ========================================================== -->
+    <!-- BOTTOM TAKEAWAY BANNER -->
+    <!-- ========================================================== -->
+    <footer class="slide-footer">
+      <div class="footer-left">
+        <div class="takeaway-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+          KEY TAKEAWAY
+        </div>
+        <div>
+          <div class="takeaway-quote">&ldquo;FlowForge turns natural-language intent into reliable, distributed, and self-healing workflow execution.&rdquo;</div>
+          <div class="takeaway-sub">Guaranteed cycle-free DAG synthesis &bull; Isolated worker queue dispatch &bull; Zero race conditions &bull; Autonomous root-cause repair.</div>
+        </div>
+      </div>
+
+      <div class="footer-tags">
+        <span class="footer-tag">Zero-Cycle Kahn</span>
+        <span class="footer-tag">9Router AI Copilot</span>
+        <span class="footer-tag">Self-Healing Loops</span>
+        <span class="footer-tag">5 Worker Queues</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- FLOATING PRESENTATION CONTROLS -->
+  <div class="floating-controls">
+    <button class="ctrl-btn" onclick="toggleFullScreen()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+      Fullscreen (F)
+    </button>
+    <button class="ctrl-btn" onclick="window.print()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+      Print / Save PDF (Cmd+P)
+    </button>
+  </div>
+
+  <script>
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'f' || e.key === 'F') {
+        toggleFullScreen();
+      }
+      if (e.key === 'p' && (e.metaKey || e.ctrlKey)) {
+        window.print();
+      }
+    });
+
+    // Auto-fit to viewport maintaining 16:9
+    function resizeSlide() {
+      const slide = document.getElementById('presentation-slide');
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      const targetRatio = 16 / 9;
+      const currentRatio = windowWidth / windowHeight;
+
+      if (windowWidth < 1920) {
+        let scale = 1;
+        if (currentRatio > targetRatio) {
+          scale = (windowHeight - 40) / 1080;
+        } else {
+          scale = (windowWidth - 40) / 1920;
+        }
+        slide.style.transform = `scale(${Math.min(scale, 1)})`;
+        slide.style.transformOrigin = 'center center';
+      } else {
+        slide.style.transform = 'none';
+      }
+    }
+
+    window.addEventListener('resize', resizeSlide);
+    window.addEventListener('DOMContentLoaded', resizeSlide);
+  </script>
+</body>
+</html>
