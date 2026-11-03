@@ -8,6 +8,7 @@
 [![Pytest Tests](https://img.shields.io/badge/Pytest-31%2F31%20Passed-success.svg?logo=pytest&logoColor=white)](src/backend/tests/)
 [![Vitest Tests](https://img.shields.io/badge/Vitest-27%2F27%20Passed-success.svg?logo=vitest&logoColor=white)](src/frontend/)
 [![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1%20Contract-green.svg?logo=openapi-initiative&logoColor=white)](docs/api/openapi.yaml)
+[![Figma](https://img.shields.io/badge/Figma-Design%20Prototype-F24E1E.svg?logo=figma&logoColor=white)](https://www.figma.com/design/cfb4ExY8LR0TdcLNgAe17d/FlowForge?node-id=0-1&p=f&t=mAFS1tkQ7jba7C5T-0)
 
 **FlowForge DWOP** is an enterprise-grade distributed workflow orchestration engine and developer console built for high-throughput, mission-critical engineering pipelines. It coordinates multi-step workflows as **Directed Acyclic Graphs (DAG)**, guarantees cycle-free execution via **Kahn's Topological Algorithm**, provides **Conditional Branching** with automatic `SKIPPED` state cascading, dispatches asynchronous tasks across **5 isolated worker queues**, and delivers **AI Prompt-to-DAG** generation and self-healing root-cause diagnostics powered by **9Router AI**.
 
@@ -141,6 +142,9 @@ The backend enforces RBAC on every API endpoint; hiding frontend controls serves
 ## 2. Information Architecture, Screen Hierarchy, and UI/UX
 
 The information architecture organizes the authenticated workspace by orchestration capability. Screen permissions and navigation follow the role matrix, while loading, empty, validation, error, saving, and success states are defined consistently.
+
+> 🎨 **Interactive UI/UX Prototype & Design System:**  
+> Access the complete Figma design specifications, design tokens, responsive breakpoints, and interactive prototypes directly on **[Figma — FlowForge UI/UX Design](https://www.figma.com/design/cfb4ExY8LR0TdcLNgAe17d/FlowForge?node-id=0-1&p=f&t=mAFS1tkQ7jba7C5T-0)**.
 
 ### 2.1 Information architecture
 
@@ -969,7 +973,7 @@ cd src/frontend && npm test
 
 - Requirements: [Scope](docs/01-scope.md), [Features](docs/02-features.md), [INVEST backlog](docs/08-invest-requirements.md), [Acceptance criteria](docs/06-acceptance-criteria.md).
 - Requirements catalogs: [Business rules](docs/requirements/business-rules.md) and [Non-functional requirements](docs/requirements/non-functional-requirements.md).
-- UI/UX: [Information architecture & Relume Sitemap](docs/04-information-architecture.md).
+- UI/UX: [Information architecture & Relume Sitemap](docs/04-information-architecture.md) and [Figma Interactive Prototype](https://www.figma.com/design/cfb4ExY8LR0TdcLNgAe17d/FlowForge?node-id=0-1&p=f&t=mAFS1tkQ7jba7C5T-0).
 - Database: [Data model](docs/05-data-model.md), [ER diagram](docs/DATABASE.md), [PostgreSQL schema](src/database/workflow_orchestrator.sql).
 - Folder structure: [React and FastAPI backend](docs/07-folder-structure.md).
 - Code-level design: [Core class diagrams](docs/architecture/uml/01-class-diagrams.md), [core sequences](docs/architecture/uml/02-sequence-diagrams.md), and [API traceability/sequences](docs/architecture/uml/03-api-traceability.md).
