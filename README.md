@@ -112,10 +112,8 @@ flowchart TB
     dev --> cardDev
     viewer --> cardViewer
 
-    classDef actorPill fill:#ffffff,color:#0f172a,stroke:#475569,stroke-width:1.5px;
-    classDef colCard fill:#ffffff,color:#0f172a,stroke:#2563eb,stroke-width:2px;
-    style dwopBoundary fill:#ffffff,stroke:#2563eb,stroke-width:2px
-    style actors fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:4 4
+    classDef actorPill fill:#334155,color:#ffffff,stroke:#64748b,stroke-width:2px;
+    classDef colCard fill:#1d4ed8,color:#ffffff,stroke:#60a5fa,stroke-width:2px;
 ```
 
 For detailed actors, permissions, and business flows, see [Actors, roles, and use cases](docs/03-use-cases.md).
@@ -238,15 +236,15 @@ flowchart TB
     flowforge -- "Sends incident alerts & report digests [Webhook POST]" --> slackNotify
     workerNodes -- "Ingests raw Parquet & upserts analytics data [SQL / I/O]" --> dataStorage
 
-    classDef actor fill:#ffffff,color:#0f172a,stroke:#475569,stroke-width:1.5px;
-    classDef platform fill:#ffffff,color:#0f172a,stroke:#2563eb,stroke-width:2.5px;
-    classDef aiExternal fill:#ffffff,color:#0f172a,stroke:#7c3aed,stroke-width:1.5px;
-    classDef workerExternal fill:#ffffff,color:#0f172a,stroke:#0d9488,stroke-width:1.5px;
-    classDef notifyExternal fill:#ffffff,color:#0f172a,stroke:#ea580c,stroke-width:1.5px;
-    classDef storageExternal fill:#ffffff,color:#0f172a,stroke:#475569,stroke-width:1.5px;
+    classDef actor fill:#0f172a,color:#fff,stroke:#334155,stroke-width:2px;
+    classDef platform fill:#1e40af,color:#fff,stroke:#3b82f6,stroke-width:3px;
+    classDef aiExternal fill:#6b21a8,color:#fff,stroke:#a855f7,stroke-width:2px;
+    classDef workerExternal fill:#0f766e,color:#fff,stroke:#14b8a6,stroke-width:2px;
+    classDef notifyExternal fill:#c2410c,color:#fff,stroke:#f97316,stroke-width:2px;
+    classDef storageExternal fill:#374151,color:#fff,stroke:#9ca3af,stroke-width:2px;
 
     style actors fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:4 4
-    style platformBoundary fill:#f0f9ff,stroke:#60a5fa,stroke-width:2px
+    style platformBoundary fill:#eff6ff,stroke:#93c5fd,stroke-width:2px
     style externals fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:4 4
 ```
 
@@ -299,20 +297,20 @@ flowchart TB
     workers -- "Dispatches P1 Alerts with Idempotency Key [Webhook]" --> slack
     workers -- "Persists analytics insights & transforms [TCP / I/O]" --> dataLake
 
-    classDef actor fill:#ffffff,color:#0f172a,stroke:#475569,stroke-width:1.5px;
-    classDef webContainer fill:#ffffff,color:#0f172a,stroke:#0284c7,stroke-width:2px;
-    classDef apiContainer fill:#ffffff,color:#0f172a,stroke:#2563eb,stroke-width:2.5px;
-    classDef workerContainer fill:#ffffff,color:#0f172a,stroke:#0d9488,stroke-width:2px;
-    classDef dbContainer fill:#ffffff,color:#0f172a,stroke:#475569,stroke-width:2px;
-    classDef aiExternal fill:#ffffff,color:#0f172a,stroke:#7c3aed,stroke-width:1.5px;
-    classDef notifyExternal fill:#ffffff,color:#0f172a,stroke:#ea580c,stroke-width:1.5px;
-    classDef storageExternal fill:#ffffff,color:#0f172a,stroke:#475569,stroke-width:1.5px;
+    classDef actor fill:#0f172a,color:#fff,stroke:#334155,stroke-width:2px;
+    classDef webContainer fill:#0284c7,color:#fff,stroke:#38bdf8,stroke-width:2px;
+    classDef apiContainer fill:#1d4ed8,color:#fff,stroke:#60a5fa,stroke-width:3px;
+    classDef workerContainer fill:#0f766e,color:#fff,stroke:#2dd4bf,stroke-width:2px;
+    classDef dbContainer fill:#1e293b,color:#fff,stroke:#94a3b8,stroke-width:2px;
+    classDef aiExternal fill:#6b21a8,color:#fff,stroke:#c084fc,stroke-width:2px;
+    classDef notifyExternal fill:#c2410c,color:#fff,stroke:#fb923c,stroke-width:2px;
+    classDef storageExternal fill:#374151,color:#fff,stroke:#9ca3af,stroke-width:2px;
 
-    style dwop fill:#ffffff,stroke:#2563eb,stroke-width:2px
-    style presentation fill:#f0f9ff,stroke:#7dd3fc,stroke-dasharray:3 3
-    style application fill:#eff6ff,stroke:#93c5fd,stroke-dasharray:3 3
-    style workerCluster fill:#f0fdfa,stroke:#5eead4,stroke-dasharray:3 3
-    style persistence fill:#f8fafc,stroke:#cbd5e1,stroke-dasharray:3 3
+    style dwop fill:#f0f9ff,stroke:#0284c7,stroke-width:2px
+    style presentation fill:#e0f2fe,stroke:#7dd3fc,stroke-dasharray:3 3
+    style application fill:#dbeafe,stroke:#93c5fd,stroke-dasharray:3 3
+    style workerCluster fill:#ccfbf1,stroke:#5eead4,stroke-dasharray:3 3
+    style persistence fill:#f1f5f9,stroke:#cbd5e1,stroke-dasharray:3 3
     style users fill:#ffffff,stroke:#e2e8f0,stroke-dasharray:4 4
     style externalServices fill:#faf5ff,stroke:#e9d5ff,stroke-dasharray:4 4
 ```
@@ -402,23 +400,23 @@ flowchart TB
     store --> db
     workerSvc <--> workerCluster
 
-    classDef webClient fill:#ffffff,color:#0f172a,stroke:#0284c7,stroke-width:2px;
-    classDef apiBox fill:#ffffff,color:#0f172a,stroke:#3b82f6,stroke-width:1.5px;
-    classDef secBox fill:#ffffff,color:#0f172a,stroke:#0284c7,stroke-width:1.5px;
-    classDef brainBox fill:#ffffff,color:#0f172a,stroke:#2563eb,stroke-width:2px;
-    classDef svcBox fill:#ffffff,color:#0f172a,stroke:#0d9488,stroke-width:2px;
-    classDef aiSvcBox fill:#ffffff,color:#0f172a,stroke:#7c3aed,stroke-width:2px;
-    classDef storeBox fill:#ffffff,color:#0f172a,stroke:#475569,stroke-width:2px;
-    classDef dbBox fill:#ffffff,color:#0f172a,stroke:#334155,stroke-width:2px;
-    classDef workerBox fill:#ffffff,color:#0f172a,stroke:#10b981,stroke-width:2px;
-    classDef aiBox fill:#ffffff,color:#0f172a,stroke:#9333ea,stroke-width:2px;
+    classDef webClient fill:#0284c7,color:#fff,stroke:#0369a1,stroke-width:2px;
+    classDef apiBox fill:#3b82f6,color:#fff,stroke:#1d4ed8,stroke-width:1px;
+    classDef secBox fill:#0369a1,color:#fff,stroke:#0284c7,stroke-width:1px;
+    classDef brainBox fill:#1e3a8a,color:#fff,stroke:#60a5fa,stroke-width:2px;
+    classDef svcBox fill:#0f766e,color:#fff,stroke:#14b8a6,stroke-width:2px;
+    classDef aiSvcBox fill:#6b21a8,color:#fff,stroke:#a855f7,stroke-width:2px;
+    classDef storeBox fill:#1e293b,color:#fff,stroke:#475569,stroke-width:2px;
+    classDef dbBox fill:#0f172a,color:#fff,stroke:#64748b,stroke-width:2px;
+    classDef workerBox fill:#047857,color:#fff,stroke:#10b981,stroke-width:2px;
+    classDef aiBox fill:#581c87,color:#fff,stroke:#9333ea,stroke-width:2px;
 
-    style master fill:#ffffff,stroke:#2563eb,stroke-width:2px
-    style apiTier fill:#f8fafc,stroke:#e2e8f0,stroke-dasharray:3 3
-    style securityTier fill:#f0f9ff,stroke:#bae6fd,stroke-dasharray:3 3
-    style domainTier fill:#eff6ff,stroke:#bfdbfe,stroke-width:2px
-    style serviceTier fill:#f0fdfa,stroke:#ccfbf1,stroke-dasharray:3 3
-    style persistTier fill:#f8fafc,stroke:#cbd5e1,stroke-width:1px
+    style master fill:#f8fafc,stroke:#2563eb,stroke-width:3px
+    style apiTier fill:#eff6ff,stroke:#bfdbfe,stroke-dasharray:3 3
+    style securityTier fill:#e0f2fe,stroke:#bae6fd,stroke-dasharray:3 3
+    style domainTier fill:#dbeafe,stroke:#93c5fd,stroke-width:2px
+    style serviceTier fill:#f0fdfa,stroke:#99f6e4,stroke-dasharray:3 3
+    style persistTier fill:#f1f5f9,stroke:#cbd5e1,stroke-width:1px
 ```
 
 Complete architectural documentation: [C4 Architecture Handbook](docs/architecture/c4/README.md) and [arc42 Engineering Handbook](docs/architecture/arc42/README.md).
@@ -669,11 +667,11 @@ flowchart TB
     queue <--> worker
     store --> db
 
-    classDef comp fill:#ffffff,color:#0f172a,stroke:#2563eb,stroke-width:2px;
-    classDef ext fill:#f8fafc,color:#0f172a,stroke:#475569,stroke-width:1.5px;
+    classDef comp fill:#1168bd,color:#fff,stroke:#0b4f9e,stroke-width:2px;
+    classDef ext fill:#0f172a,color:#fff,stroke:#334155,stroke-width:2px;
     class handler,service,engine,queue,store comp
     class web,worker,db ext
-    style executionEngine fill:#ffffff,stroke:#3b82f6,stroke-width:2px,stroke-dasharray:4 4
+    style executionEngine fill:#f8fbff,stroke:#1168bd,stroke-dasharray:4 4
 ```
 
 #### L4.2 AI Failure Diagnostics & Self-Healing
@@ -698,11 +696,11 @@ flowchart TB
     aiService --> execService
     aiService --> llm
 
-    classDef aiComp fill:#ffffff,color:#0f172a,stroke:#7c3aed,stroke-width:2px;
-    classDef extBox fill:#f8fafc,color:#0f172a,stroke:#475569,stroke-width:1.5px;
+    classDef aiComp fill:#7c3aed,color:#fff,stroke:#6d28d9,stroke-width:2px;
+    classDef extBox fill:#0f172a,color:#fff,stroke:#334155,stroke-width:2px;
     class aiRouter,aiService,diagModel aiComp
     class web,execService,llm extBox
-    style aiEngine fill:#ffffff,stroke:#8b5cf6,stroke-width:2px,stroke-dasharray:4 4
+    style aiEngine fill:#faf5ff,stroke:#7c3aed,stroke-dasharray:4 4
 ```
 
 ---
