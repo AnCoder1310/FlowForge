@@ -13,6 +13,38 @@
 
 ---
 
+## Table of Contents
+
+- [1. Requirements — INVEST, Use Cases, and Acceptance Criteria](#1-requirements--invest-use-cases-and-acceptance-criteria)
+  - [1.1 Product mind map](#11-product-mind-map)
+  - [1.2 INVEST requirements](#12-invest-requirements)
+  - [1.3 Use cases](#13-use-cases)
+  - [1.4 Roles and permissions](#14-roles-and-permissions)
+- [2. Information Architecture, Screen Hierarchy, and UI/UX](#2-information-architecture-screen-hierarchy-and-uiux)
+  - [2.1 Information architecture](#21-information-architecture)
+  - [2.2 Screen hierarchy](#22-screen-hierarchy)
+  - [2.3 Current UI prototype](#23-current-ui-prototype)
+- [3. C4 Architecture](#3-c4-architecture)
+  - [C1 — System Context](#c1--system-context)
+  - [C2 — Container](#c2--container)
+  - [C3 — Component](#c3--component)
+- [4. Database Diagrams and OpenAPI 3.1 Contract](#4-database-diagrams-and-openapi-31-contract)
+  - [4.1 Database diagrams](#41-database-diagrams)
+  - [4.2 OpenAPI 3.1 API documentation](#42-openapi-31-api-documentation)
+- [5. Frontend and Backend Folder Structures](#5-frontend-and-backend-folder-structures)
+  - [5.1 Current repository layout](#51-current-repository-layout)
+  - [5.2 Target React feature structure](#52-target-react-feature-structure)
+  - [5.3 Target FastAPI backend structure](#53-target-fastapi-backend-structure)
+- [6. Detailed Class and Sequence Design](#6-detailed-class-and-sequence-design)
+  - [6.1 C4 Level 4 — Code collaboration](#61-c4-level-4--code-collaboration)
+  - [6.2 Core class diagrams](#62-core-class-diagrams)
+  - [6.3 Sequence diagrams](#63-sequence-diagrams)
+- [Quick Start & Runbook](#quick-start--runbook)
+- [Documentation & Engineering Specifications](#documentation)
+- [Project Progress & Deliverables](#project-progress)
+
+---
+
 ## 1. Requirements — INVEST, Use Cases, and Acceptance Criteria
 
 Requirements define what FlowForge must do, who uses it, the value delivered, and the observable conditions of success. User stories are reviewed with INVEST and mapped to use cases and acceptance criteria.
@@ -117,23 +149,23 @@ The information architecture organizes the authenticated workspace by orchestrat
 
 ```text
 Public Layer
-└── /login (Xác thực tài khoản & 4 tài khoản Demo một chạm)
+└── /login                  - Authentication portal & 1-click 4-role demo switcher
 
-Authenticated Workspace (Shell Layout: Sidebar cố định 260px + Header sticky 68px)
+Authenticated Workspace (Shell Layout: Fixed 260px Sidebar + Sticky 68px Topbar)
 ├── [ORCHESTRATION ENGINE]
-│   ├── /dashboard          - Giám sát Telemetry, cụm chỉ số KPI & Kích hoạt nhanh
-│   ├── /workflows          - Danh mục DAG, Visual Mini-Pipeline & AI Prompt-to-DAG Copilot
-│   │   └── /workflows/studio - Visual DAG Builder Studio (Drag-and-Drop Canvas)
-│   ├── /executions         - Quản trị lượt chạy, Timeline từng bước, Trạng thái SKIPPED & AI Self-Healing
-│   └── /workers            - Cụm Worker Nodes, Concurrency Slots & 5 Hàng đợi Phân tán
+│   ├── /dashboard          - Cluster telemetry, KPI metrics & quick-trigger panel
+│   ├── /workflows          - DAG repository, mini-pipeline preview & AI Prompt-to-DAG Copilot
+│   │   └── /workflows/studio - Visual DAG Builder Studio (drag-and-drop canvas)
+│   ├── /executions         - Instance lifecycle, step progress timeline, SKIPPED cascade & AI diagnostics
+│   └── /workers            - Distributed worker fleet, concurrency slots & 5 isolated queues
 │
 ├── [GOVERNANCE & ADMIN]
-│   ├── /audit              - Nhật ký kiểm toán bảo mật bất biến (Security Audit Trail)
-│   ├── /users              - Danh bạ tài khoản & Ma trận phân quyền 4 vai trò RBAC
-│   └── /profile            - Hồ sơ kỹ sư, Đổi mật khẩu & Thanh tra quyền hạn
+│   ├── /audit              - Immutable security audit trail (SOC-2 compliance)
+│   ├── /users              - Enterprise user directory & 4-tier RBAC policy matrix
+│   └── /profile            - Engineer profile, credentials & self-service password reset
 │
 └── [SYSTEM EXCEPTION]
-    └── /403                - Màn hình từ chối truy cập (Access Denied / Forbidden)
+    └── /403                - Access Forbidden / Permission guard fallback screen
 ```
 
 ### 2.2 Screen hierarchy
@@ -144,17 +176,23 @@ Detailed screen IDs, user flows, screen states, accessibility rules, and API map
 
 ### 2.3 Current UI prototype
 
+The developer console is built with React 18, Tailwind CSS, and Lucide Icons, offering a responsive dark/light developer environment across 4 core operational workspaces:
+
 #### 1. Platform Dashboard & Telemetry
 ![Platform Dashboard](docs/images/admin/01-dashboard.png)
+> **Key Capabilities:** Unified operational console displaying real-time cluster health, active execution instances, worker node heartbeats, and live queue throughput telemetry. Includes one-click quick trigger actions and system status sentinels.
 
-#### 2. Workflows & DAG Definitions
+#### 2. Workflows & Visual DAG Definitions
 ![Workflows & DAG Definitions](docs/images/admin/DAG.png)
+> **Key Capabilities:** Interactive DAG dependency designer featuring JSON schema configuration, Kahn zero-cycle validation guardrails, visual topological layer previews, and 9Router AI Prompt-to-DAG generation.
 
-#### 3. Executions & Step Lifecycle
+#### 3. Executions & Step Lifecycle Tracker
 ![Executions & Step Lifecycle](docs/images/admin/run.png)
+> **Key Capabilities:** Real-time step progress stepper tracking atomic transitions (`RUNNING`, `COMPLETED`, `SKIPPED`), conditional branch evaluations, contextual payload inspection, and emergency run cancellation.
 
 #### 4. Worker Nodes & Task Queues
 ![Worker Nodes & Task Queues](docs/images/admin/workers.png)
+> **Key Capabilities:** 5 dedicated queue lanes monitoring distributed worker concurrency slots, 45-second heartbeat sentinels, and non-blocking task routing preventing heavy compute jobs from starving instant webhooks.
 
 ---
 

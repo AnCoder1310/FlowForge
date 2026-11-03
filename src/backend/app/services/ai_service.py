@@ -1,3 +1,12 @@
+def _slugify_vietnamese(text: str, max_words: int = 5) -> str:
+    import unicodedata
+    nfkd = unicodedata.normalize('NFKD', text)
+    ascii_text = ''.join([c for c in nfkd if not unicodedata.combining(c)])
+    ascii_text = ascii_text.replace('đ', 'd').replace('Đ', 'D')
+    clean = re.sub(r'[^a-zA-Z0-9]+', '-', ascii_text).strip('-')
+    words = [w.capitalize() for w in clean.split('-') if w]
+    return '-'.join(words[:max_words]) if words else 'Custom'
+
 import json
 import logging
 import os
@@ -113,8 +122,16 @@ class AiOrchestratorService:
     @classmethod
     def _call_9router(cls, prompt: str) -> Optional[dict]:
         """Call local/remote 9Router OpenAI-compatible chat completions endpoint."""
-        router_base = os.environ.get("ROUTER_BASE_URL", os.environ.get("NINEROUTER_BASE_URL", "http://localhost:20128/v1")).rstrip("/")
-        router_key = os.environ.get("ROUTER_KEY", os.environ.get("NINEROUTER_API_KEY", "sk-3de32802bddf729c-p3z5m1-7d22f262"))
+        openai_key = os.environ.get("OPENAI_API_KEY")
+        router_base = os.environ.get("ROUTER_BASE_URL", os.environ.get("NINEROUTER_BASE_URL", "")).rstrip("/")
+        if not router_base and openai_key:
+            router_base = "https://api.openai.com/v1"
+            router_key = openai_key
+        elif not router_base:
+            router_base = "http://localhost:20128/v1"
+            router_key = os.environ.get("ROUTER_KEY", os.environ.get("NINEROUTER_API_KEY", "sk-3de32802bddf729c-p3z5m1-7d22f262"))
+        else:
+            router_key = os.environ.get("ROUTER_KEY", os.environ.get("NINEROUTER_API_KEY", "sk-3de32802bddf729c-p3z5m1-7d22f262"))
         ai_model = os.environ.get("AI_MODEL", "gpt-4o-mini")
         ai_timeout = float(os.environ.get("AI_TIMEOUT", "10.0"))
 
@@ -308,7 +325,7 @@ class AiOrchestratorService:
             reasoning = "Đã thiết kế quy trình Agentic DAG gồm 5 bước: 2 bước AI Agent (phân loại sentiment & tạo tóm tắt điều hành), kết hợp định tuyến rẽ nhánh (branching) tới Slack và lưu trữ Data-IO."
 
         # 2. E-commerce Order Fulfillment Saga
-        elif any(w in lower for w in ["đơn hàng", "order", "fulfillment", "thương mại", "mua hàng", "bán hàng", "kho", "ship"]):
+        elif any(w in lower for w in ["đơn hàng", "đặt hàng", "thanh toán", "order", "fulfillment", "thương mại", "mua hàng", "bán hàng", "kho", "ship", "payment", "checkout"]):
             name = "Order-Fulfillment-Saga"
             desc = "Quy trình xử lý đơn hàng đa bước: kiểm tra thanh toán & tồn kho song song, đóng gói và giao vận."
             steps = [
@@ -355,8 +372,8 @@ class AiOrchestratorService:
 
         # 5. General Adaptive Business Decomposition
         else:
-            slug = re.sub(r"[^a-zA-Z0-9]+", "-", clean_prompt[:30]).strip("-") or "Custom"
-            name = f"Workflow-{slug.title()}"
+            slug = _slugify_vietnamese(clean_prompt, max_words=5)
+            name = f"Workflow-{slug}"
             desc = f"Quy trình tự động hóa phân tán phân rã nghiệp vụ cho: '{clean_prompt}'"
 
             steps = [
