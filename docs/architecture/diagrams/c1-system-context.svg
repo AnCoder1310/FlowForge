@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="1200" height="680" style="background:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.06" />
+    </filter>
+  </defs>
+
+  <!-- Title Badge & Header -->
+  <rect x="40" y="25" width="220" height="28" rx="14" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1" />
+  <text x="150" y="43" font-size="11" font-weight="700" fill="#2563eb" text-anchor="middle" letter-spacing="0.5">C1 • SYSTEM CONTEXT LEVEL</text>
+  <text x="40" y="80" font-size="24" font-weight="800" fill="#0f172a">FlowForge DWOP — System Boundary &amp; Enterprise Actors</text>
+
+  <!-- 4 System Actors (Top Row) -->
+  <g transform="translate(40, 110)">
+    <!-- Actor 1: Administrator -->
+    <rect x="0" y="0" width="260" height="95" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.5" filter="url(#shadow)" />
+    <rect x="12" y="12" width="32" height="32" rx="6" fill="#eff6ff" />
+    <text x="28" y="33" font-size="16" text-anchor="middle">👤</text>
+    <text x="54" y="28" font-size="14" font-weight="700" fill="#0f172a">Administrator</text>
+    <text x="54" y="44" font-size="11" font-weight="500" fill="#2563eb">Platform &amp; Cluster Owner</text>
+    <text x="14" y="72" font-size="11" fill="#475569">Full governance, RBAC matrix, and SOC-2 immutable audit compliance.</text>
+
+    <!-- Actor 2: Operations Lead -->
+    <rect x="285" y="0" width="260" height="95" rx="10" fill="#ffffff" stroke="#0284c7" stroke-width="1.5" filter="url(#shadow)" />
+    <rect x="297" y="12" width="32" height="32" rx="6" fill="#f0f9ff" />
+    <text x="313" y="33" font-size="16" text-anchor="middle">⚙️</text>
+    <text x="339" y="28" font-size="14" font-weight="700" fill="#0f172a">Operations Lead</text>
+    <text x="339" y="44" font-size="11" font-weight="500" fill="#0284c7">SRE / DevOps Lead</text>
+    <text x="299" y="72" font-size="11" fill="#475569">Triggers pipelines, emergency cancel, worker load &amp; failure diagnostics.</text>
+
+    <!-- Actor 3: Workflow Developer -->
+    <rect x="570" y="0" width="260" height="95" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5" filter="url(#shadow)" />
+    <rect x="582" y="12" width="32" height="32" rx="6" fill="#faf5ff" />
+    <text x="598" y="33" font-size="16" text-anchor="middle">⚡</text>
+    <text x="624" y="28" font-size="14" font-weight="700" fill="#0f172a">Workflow Developer</text>
+    <text x="624" y="44" font-size="11" font-weight="500" fill="#7c3aed">Pipeline &amp; Data Engineer</text>
+    <text x="584" y="72" font-size="11" fill="#475569">Visual DAG design, Kahn cycle verification, and AI Prompt-to-DAG.</text>
+
+    <!-- Actor 4: Platform Observer -->
+    <rect x="855" y="0" width="260" height="95" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5" filter="url(#shadow)" />
+    <rect x="867" y="12" width="32" height="32" rx="6" fill="#f8fafc" />
+    <text x="883" y="33" font-size="16" text-anchor="middle">👁️</text>
+    <text x="909" y="28" font-size="14" font-weight="700" fill="#0f172a">Platform Observer</text>
+    <text x="909" y="44" font-size="11" font-weight="500" fill="#64748b">Auditor &amp; Read-Only Observer</text>
+    <text x="869" y="72" font-size="11" fill="#475569">Read-only cluster health, execution step progress, and queue metrics.</text>
+  </g>
+
+  <!-- Flow Lines from Actors to Master System -->
+  <path d="M 170 205 L 170 250 L 500 250 L 500 280" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)" />
+  <path d="M 415 205 L 415 280" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)" />
+  <path d="M 700 205 L 700 280" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)" />
+  <path d="M 985 205 L 985 250 L 700 250 L 700 280" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)" />
+
+  <!-- Center: FlowForge Master System Boundary -->
+  <rect x="250" y="280" width="700" height="180" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="2.5" filter="url(#shadow)" />
+  <rect x="252" y="282" width="696" height="38" rx="10" fill="#f8fafc" />
+  <text x="600" y="306" font-size="15" font-weight="800" fill="#1e40af" text-anchor="middle">FlowForge Distributed Workflow Orchestration Platform (Master Brain)</text>
+
+  <g transform="translate(280, 335)">
+    <circle cx="8" cy="8" r="4" fill="#2563eb" />
+    <text x="22" y="12" font-size="12" font-weight="600" fill="#0f172a">Kahn Topological Algorithm: <tspan font-weight="400" fill="#475569">Deterministic In-degree resolution &amp; strict 0-cycle invariant guarantee.</tspan></text>
+
+    <circle cx="8" cy="34" r="4" fill="#0284c7" />
+    <text x="22" y="38" font-size="12" font-weight="600" fill="#0f172a">Atomic State Machine: <tspan font-weight="400" fill="#475569">Seamless transition (RUNNING, COMPLETED, SKIPPED) with branch fork/join.</tspan></text>
+
+    <circle cx="8" cy="60" r="4" fill="#0d9488" />
+    <text x="22" y="64" font-size="12" font-weight="600" fill="#0f172a">5-Lane Queue Router: <tspan font-weight="400" fill="#475569">Isolated dispatching (default, compute, data-io, payment, ai-agent).</tspan></text>
+
+    <circle cx="8" cy="86" r="4" fill="#7c3aed" />
+    <text x="22" y="90" font-size="12" font-weight="600" fill="#0f172a">Cognitive AI Copilot: <tspan font-weight="400" fill="#475569">Natural prompt decomposition &amp; automated failure root cause diagnostics.</tspan></text>
+
+    <circle cx="8" cy="112" r="4" fill="#64748b" />
+    <text x="22" y="116" font-size="12" font-weight="600" fill="#0f172a">Enterprise Security &amp; Audit: <tspan font-weight="400" fill="#475569">HMAC-SHA256 tokens, 4-tier RBAC guards, and immutable SOC-2 audit trail.</tspan></text>
+  </g>
+
+  <!-- Connectors from Master to External Ecosystem -->
+  <path d="M 380 460 L 380 500 L 170 500 L 170 535" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)" />
+  <path d="M 500 460 L 500 535" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)" />
+  <path d="M 700 460 L 700 535" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)" />
+  <path d="M 820 460 L 820 500 L 1030 500 L 1030 535" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)" />
+
+  <!-- Bottom Row: External Integrations -->
+  <g transform="translate(40, 540)">
+    <!-- External 1: AI Gateway -->
+    <rect x="0" y="0" width="260" height="95" rx="10" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5" filter="url(#shadow)" />
+    <text x="16" y="25" font-size="13" font-weight="700" fill="#7c3aed">9Router AI / LLM Gateway</text>
+    <text x="16" y="42" font-size="11" font-weight="600" fill="#0f172a">OpenAI / DeepSeek Engine</text>
+    <text x="16" y="62" font-size="11" fill="#475569">Synthesizes zero-cycle DAG schemas from prompts; delivers failure RCA suggestions.</text>
+    <text x="16" y="82" font-size="10" font-weight="600" fill="#7c3aed">Protocol: REST / HTTPS JSON</text>
+
+    <!-- External 2: Distributed Worker Cluster -->
+    <rect x="285" y="0" width="260" height="95" rx="10" fill="#ffffff" stroke="#0d9488" stroke-width="1.5" filter="url(#shadow)" />
+    <text x="301" y="25" font-size="13" font-weight="700" fill="#0d9488">Distributed Worker Fleet</text>
+    <text x="301" y="42" font-size="11" font-weight="600" fill="#0f172a">Multi-Process Compute Nodes</text>
+    <text x="301" y="62" font-size="11" fill="#475569">Claims scheduled tasks atomically across 5 queues; sends 45s heartbeat sentinels.</text>
+    <text x="301" y="82" font-size="10" font-weight="600" fill="#0d9488">Protocol: Non-blocking HTTP Poll</text>
+
+    <!-- External 3: Notification Channels -->
+    <rect x="570" y="0" width="260" height="95" rx="10" fill="#ffffff" stroke="#ea580c" stroke-width="1.5" filter="url(#shadow)" />
+    <text x="586" y="25" font-size="13" font-weight="700" fill="#ea580c">Incident &amp; Alert Webhooks</text>
+    <text x="586" y="42" font-size="11" font-weight="600" fill="#0f172a">Slack / PagerDuty / Webhook</text>
+    <text x="586" y="62" font-size="11" fill="#475569">Dispatches P1 incident alerts and daily digests with idempotency key protection.</text>
+    <text x="586" y="82" font-size="10" font-weight="600" fill="#ea580c">Protocol: Outbound HTTPS Webhooks</text>
+
+    <!-- External 4: Enterprise Storage -->
+    <rect x="855" y="0" width="260" height="95" rx="10" fill="#ffffff" stroke="#475569" stroke-width="1.5" filter="url(#shadow)" />
+    <text x="871" y="25" font-size="13" font-weight="700" fill="#334155">Relational Database &amp; Lake</text>
+    <text x="871" y="42" font-size="11" font-weight="600" fill="#0f172a">PostgreSQL &amp; Parquet Lake</text>
+    <text x="871" y="62" font-size="11" fill="#475569">Guarantees ACID transactions, execution history, and audit immutability.</text>
+    <text x="871" y="82" font-size="10" font-weight="600" fill="#475569">Protocol: SQL Connection Pooling</text>
+  </g>
+</svg>
