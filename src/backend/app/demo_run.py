@@ -18,7 +18,11 @@ def run_simulation():
     # 2. AI DAG Generation
     print("\n[2] ✨ Gọi AI Orchestrator: Tự động thiết kế DAG bằng ngôn ngữ tự nhiên...")
     prompt = "Quy trình AI phân tích đánh giá khách hàng và gửi cảnh báo Slack"
-    ai_wf = AiOrchestratorService.generate_workflow(prompt)
+    try:
+        ai_wf = AiOrchestratorService.generate_workflow(prompt)
+    except Exception as e:
+        print(f"   [!] AI Gateway offline ({e}), chuyển sang chế độ demo mô phỏng...")
+        ai_wf = AiOrchestratorService.generate_offline_template(prompt)
     print(f"   -> AI tạo workflow: '{ai_wf.name}'")
     print(f"   -> Lý do thiết kế (Reasoning): {ai_wf.reasoning}")
     print(f"   -> Cấu trúc DAG gồm {len(ai_wf.dag.steps)} bước:")

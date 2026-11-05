@@ -1007,15 +1007,7 @@ export default function Shell() {
             </div>
 
             {/* Dark / Light Mode Toggle */}
-            <button
-              type="button"
-              className="orch-icon-btn"
-              aria-label={darkMode ? "Giao diện sáng" : "Giao diện tối"}
-              title={darkMode ? "Giao diện sáng" : "Giao diện tối"}
-              onClick={() => setDarkMode((v) => !v)}
-            >
-              <I name={darkMode ? "sun" : "moon"} size={16} />
-            </button>
+           
 
             {/* Quick Profile Avatar */}
             <button

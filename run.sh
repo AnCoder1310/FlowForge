@@ -41,7 +41,7 @@ case "$1" in
     ;;
 
   test)
-    echo ">> Chạy toàn bộ 31 bài Pytest của Orchestrator & AI Engine ..."
+    echo ">> Chạy toàn bộ 34 bài Pytest của Orchestrator & AI Engine ..."
     cd "$DIR/src/backend"
     python3 -m pytest -v
     ;;

@@ -355,12 +355,14 @@ class AuditLog(BaseModel):
 # --- AI Integration Schemas ---
 class AiGenerateWorkflowRequest(BaseModel):
     prompt: str
+    autoSave: Optional[bool] = False
 
 class AiGenerateWorkflowResponse(BaseModel):
     name: str
     description: str
     dag: DagDefinition
     reasoning: str
+    workflowId: Optional[int] = None
 
 class AiDiagnoseFailureRequest(BaseModel):
     instanceId: int

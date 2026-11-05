@@ -40,4 +40,14 @@ class Settings(BaseModel):
         if origin.strip()
     ]
 
+    # AI Configuration (OpenAI / 9Router / Antigravity Gateway)
+    AI_ENABLED: bool = os.getenv("AI_ENABLED", "true").strip().lower() in ("1", "true", "yes")
+    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "router").strip()
+    ROUTER_BASE_URL: str = os.getenv("ROUTER_BASE_URL", "http://localhost:20128/v1").strip().rstrip("/")
+    ROUTER_KEY: str = os.getenv("ROUTER_KEY", "").strip()
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "").strip()
+    OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip().rstrip("/")
+    AI_MODEL: str = os.getenv("AI_MODEL", "gemini").strip()
+    AI_TIMEOUT: float = float(os.getenv("AI_TIMEOUT", "30.0"))
+
 settings = Settings()

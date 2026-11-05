@@ -17,7 +17,11 @@ def generate_workflow_dag(
     user: UserAccount = Depends(get_current_user),
 ):
     """Tự động thiết kế DAG workflow từ prompt văn bản tự nhiên sử dụng AI."""
-    return AiOrchestratorService.generate_workflow(req.prompt)
+    return AiOrchestratorService.generate_workflow(
+        prompt=req.prompt,
+        auto_save=bool(req.autoSave),
+        actor_user_id=user.id
+    )
 
 @router.post("/diagnose-failure", response_model=AiDiagnoseFailureResponse)
 def diagnose_execution_failure(

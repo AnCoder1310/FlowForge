@@ -1,19 +1,11 @@
-def _slugify_vietnamese(text: str, max_words: int = 5) -> str:
-    import unicodedata
-    nfkd = unicodedata.normalize('NFKD', text)
-    ascii_text = ''.join([c for c in nfkd if not unicodedata.combining(c)])
-    ascii_text = ascii_text.replace('đ', 'd').replace('Đ', 'D')
-    clean = re.sub(r'[^a-zA-Z0-9]+', '-', ascii_text).strip('-')
-    words = [w.capitalize() for w in clean.split('-') if w]
-    return '-'.join(words[:max_words]) if words else 'Custom'
-
 import json
 import logging
-import os
 import re
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 import httpx
 
+from app.config import settings
 from app.core.exceptions import AppException
 from app.domain.dag_engine import DagEngine
 from app.domain.models import (
@@ -23,12 +15,13 @@ from app.domain.models import (
     DagStep,
     StepStatus,
     TaskType,
+    WorkflowDefinition,
 )
 from app.persistence.store import store
 
 logger = logging.getLogger(__name__)
 
-# Supported backend task types and queues
+# Supported backend task types and worker queues
 ALLOWED_TASK_TYPES = {
     TaskType.HTTP_TASK,
     TaskType.WORKER_TASK,
@@ -117,71 +110,231 @@ CRITICAL ARCHITECTURAL RULES:
    }
 """
 
+DIAGNOSE_SYSTEM_PROMPT = """You are an expert Reliability & Site Reliability Engineer (SRE) for FlowForge Distributed Workflow Orchestration Platform.
+Your task is to analyze failed workflow executions, diagnose the exact root cause, and provide actionable, production-ready remediation advice.
+
+CRITICAL INSTRUCTIONS:
+- Analyze the failed step name, queue, error message, execution payload, and contextual parameters.
+- Provide a clear, technical Root Cause Analysis (rootCause).
+- Provide concrete, numbered remediation steps for operations engineers (suggestedFix).
+- Assign an accurate severity level: "LOW", "MEDIUM", "HIGH", or "CRITICAL".
+- Determine if the issue is auto-fixable via retry/parameter adjust (autoFixable: boolean).
+
+Respond with pure valid JSON ONLY:
+{
+  "rootCause": "Clear explanation of why this step or workflow failed...",
+  "suggestedFix": "1. First action step...\\n2. Second action step...\\n3. Verification...",
+  "severity": "HIGH",
+  "autoFixable": true
+}
+"""
+
 
 class AiOrchestratorService:
     @classmethod
-    def _call_9router(cls, prompt: str) -> Optional[dict]:
-        """Call local/remote 9Router OpenAI-compatible chat completions endpoint."""
-        openai_key = os.environ.get("OPENAI_API_KEY")
-        router_base = os.environ.get("ROUTER_BASE_URL", os.environ.get("NINEROUTER_BASE_URL", "")).rstrip("/")
-        if not router_base and openai_key:
-            router_base = "https://api.openai.com/v1"
-            router_key = openai_key
-        elif not router_base:
-            router_base = "http://localhost:20128/v1"
-            router_key = os.environ.get("ROUTER_KEY", os.environ.get("NINEROUTER_API_KEY", "sk-3de32802bddf729c-p3z5m1-7d22f262"))
-        else:
-            router_key = os.environ.get("ROUTER_KEY", os.environ.get("NINEROUTER_API_KEY", "sk-3de32802bddf729c-p3z5m1-7d22f262"))
-        ai_model = os.environ.get("AI_MODEL", "gpt-4o-mini")
-        ai_timeout = float(os.environ.get("AI_TIMEOUT", "10.0"))
+    def _resolve_provider_config(cls) -> dict:
+        """
+        Resolves provider URL, API key, model and timeout from application settings.
+        Validates configuration without hardcoding sensitive secrets.
+        """
+        if not settings.AI_ENABLED:
+            raise AppException.service_unavailable(
+                "Tính năng AI Copilot hiện đang bị tắt bởi cấu hình hệ thống (AI_ENABLED=false)."
+            )
 
-        url = f"{router_base}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {router_key}",
-            "Content-Type": "application/json",
+        # 1. Base URL & Key resolution
+        if settings.OPENAI_API_KEY and not settings.ROUTER_KEY:
+            base_url = settings.OPENAI_BASE_URL or "https://api.openai.com/v1"
+            api_key = settings.OPENAI_API_KEY
+            default_model = settings.AI_MODEL or "gpt-4o-mini"
+        else:
+            base_url = settings.ROUTER_BASE_URL or "http://localhost:20128/v1"
+            api_key = settings.ROUTER_KEY or settings.OPENAI_API_KEY
+            default_model = settings.AI_MODEL or "gemini"
+
+        if not api_key:
+            raise AppException.service_unavailable(
+                "Chưa cấu hình API Key cho AI Gateway / Provider. "
+                "Vui lòng thiết lập ROUTER_KEY hoặc OPENAI_API_KEY trong file .env."
+            )
+
+        return {
+            "base_url": base_url.rstrip("/"),
+            "api_key": api_key,
+            "default_model": default_model,
+            "timeout": settings.AI_TIMEOUT,
         }
-        payload = {
-            "model": ai_model,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.2,
-        }
+
+    @classmethod
+    def _parse_llm_json(cls, raw_content: str) -> dict:
+        """
+        Robust JSON extractor: strips markdown code fences, extracts outer JSON braces,
+        repairs common trailing commas, and parses valid dict.
+        """
+        content = raw_content.strip()
+
+        # 1. Strip markdown fences: ```json ... ``` or ``` ... ```
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*", "", content, flags=re.IGNORECASE)
+            content = re.sub(r"\s*```$", "", content)
+            content = content.strip()
+
+        # 2. Extract outermost JSON object if there is leading/trailing text
+        brace_start = content.find("{")
+        brace_end = content.rfind("}")
+        if brace_start != -1 and brace_end != -1 and brace_end > brace_start:
+            content = content[brace_start : brace_end + 1].strip()
+
+        # 3. Clean common trailing commas before closing braces/brackets
+        content = re.sub(r",\s*([\}\]])", r"\1", content)
 
         try:
-            with httpx.Client(timeout=ai_timeout) as client:
-                res = client.post(url, json=payload, headers=headers)
+            parsed = json.loads(content)
+            if isinstance(parsed, dict):
+                return parsed
+            raise ValueError("Parsed JSON root must be a dictionary.")
+        except Exception as e:
+            logger.error("Failed to parse JSON response from LLM: %s. Raw: %s", e, raw_content[:300])
+            raise AppException.validation(
+                f"AI Provider trả về định dạng JSON không hợp lệ: {str(e)}. "
+                f"Nội dung nhận được: {raw_content[:150]}"
+            )
+
+    @classmethod
+    def _call_llm(
+        cls,
+        system_prompt: str,
+        user_prompt: str,
+        preferred_model: Optional[str] = None,
+    ) -> dict:
+        """
+        Invokes OpenAI-compatible chat completions endpoint (9Router / OpenAI / Antigravity Gateway).
+        Prioritizes fast low-thinking models, guards against single-model timeouts,
+        and cycles through candidate models before failing.
+        """
+        cfg = cls._resolve_provider_config()
+        base_url = cfg["base_url"]
+        api_key = cfg["api_key"]
+        timeout = cfg["timeout"]
+        primary_model = preferred_model or cfg["default_model"]
+
+        # Prepare ordered candidate models
+        candidate_models = [primary_model]
+        if "20128" in base_url or "router" in base_url.lower():
+            # Fast, low-latency models first to prevent Gateway Timeout
+            router_defaults = [
+                "gemini-3.8-flash-low",
+                "gemini-3.7-flash-low",
+                "gemini-3.6-flash-low",
+                "claude-sonnet-4-6",
+                "gemini",
+                "openAI",
+                "mixed",
+                "claude",
+            ]
+            for m in router_defaults:
+                if m not in candidate_models:
+                    candidate_models.append(m)
+
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        last_error: Optional[str] = None
+        had_timeout: bool = False
+
+        for model in candidate_models:
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.2,
+                "max_tokens": 2500,
+            }
+
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    res = client.post(url, json=payload, headers=headers)
+
                 if res.status_code == 200:
                     data = res.json()
                     choices = data.get("choices", [])
-                    if choices:
-                        content = choices[0].get("message", {}).get("content", "").strip()
-                        # Strip markdown fences if present
-                        if content.startswith("```"):
-                            content = re.sub(r"^```(?:json)?\s*", "", content)
-                            content = re.sub(r"\s*```$", "", content)
-                        parsed = json.loads(content)
-                        if isinstance(parsed, dict) and "dag" in parsed:
-                            return parsed
-        except Exception as e:
-            logger.debug("9Router invocation failed, falling back to local decomposition: %s", e)
-            return None
+                    if not choices:
+                        last_error = f"Model '{model}': choices list is empty"
+                        logger.warning("AI Provider (%s) returned empty choices for model %s", base_url, model)
+                        continue
+                    content = choices[0].get("message", {}).get("content", "")
+                    return cls._parse_llm_json(content)
 
-        return None
+                elif res.status_code in (401, 403):
+                    raise AppException.unauthorized(
+                        f"Xác thực thất bại với AI Provider (HTTP {res.status_code}). "
+                        "Vui lòng kiểm tra lại ROUTER_KEY hoặc OPENAI_API_KEY trong file .env."
+                    )
+                elif res.status_code in (404, 400, 502, 503):
+                    last_error = f"Model '{model}' HTTP {res.status_code}: {res.text[:180]}"
+                    logger.warning("AI Provider model '%s' rejected (HTTP %s), trying next candidate: %s", model, res.status_code, last_error)
+                    continue
+                else:
+                    last_error = f"Model '{model}' HTTP {res.status_code}: {res.text[:180]}"
+                    continue
+
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                logger.error("AI Provider ConnectError at %s: %s", url, e)
+                raise AppException.service_unavailable(
+                    f"Không thể kết nối đến AI Gateway tại '{base_url}'. "
+                    "Vui lòng kiểm tra dịch vụ 9Router hoặc OpenAI API đã được khởi động."
+                )
+            except httpx.TimeoutException as e:
+                had_timeout = True
+                last_error = f"Model '{model}' timed out after {timeout}s"
+                logger.warning("AI Provider candidate '%s' timed out after %ss, trying next candidate...", model, timeout)
+                continue
+            except AppException:
+                raise
+            except Exception as e:
+                logger.error("Unexpected error invoking candidate model '%s': %s", model, e)
+                last_error = f"Model '{model}' exception: {str(e)}"
+                continue
+
+        if had_timeout:
+            raise AppException.gateway_timeout(
+                f"AI Provider phản hồi vượt quá thời gian chờ ({timeout}s). "
+                f"Vui lòng thử lại hoặc tăng AI_TIMEOUT trong file .env. Lỗi gần nhất: {last_error}"
+            )
+
+        raise AppException.bad_gateway(
+            f"Không có model nào phản hồi thành công trên AI Gateway ({base_url}). Lỗi gần nhất: {last_error}"
+        )
 
     @classmethod
     def _sanitize_and_repair_dag(cls, raw: dict, prompt: str) -> AiGenerateWorkflowResponse:
-        """Sanitizes, validates, and repairs a DAG dictionary to strictly meet all backend invariants."""
+        """
+        Sanitizes, validates, and repairs an AI-generated DAG dictionary to strictly meet all
+        FlowForge invariants:
+        1. Unique step IDs.
+        2. Valid TaskType enum.
+        3. Supported isolated queue name.
+        4. Bounded maxRetries and timeoutSeconds.
+        5. Clean dependsOn references.
+        6. Deterministic Kahn's cycle detection and cycle breaking.
+        7. Full compliance with DagEngine.validate_dag().
+        """
         name = str(raw.get("name") or "Workflow-Generated").strip()
         description = str(raw.get("description") or f"Quy trình tự động hóa: {prompt}").strip()
-        reasoning = str(raw.get("reasoning") or "Đã phân rã quy trình thành các bước độc lập với nhánh song song.").strip()
+        reasoning = str(
+            raw.get("reasoning")
+            or "Đã phân rã quy trình thành các bước độc lập với nhánh song song và xử lý tin cậy."
+        ).strip()
 
         dag_raw = raw.get("dag") or {}
         raw_steps = dag_raw.get("steps") if isinstance(dag_raw, dict) else []
         if not raw_steps or not isinstance(raw_steps, list):
-            raise AppException.validation("AI không tạo được danh sách bước hợp lệ.")
+            raise AppException.validation("AI không tạo được danh sách bước (steps) hợp lệ cho workflow.")
 
         sanitized_steps: List[DagStep] = []
         seen_ids: Set[str] = set()
@@ -202,11 +355,11 @@ class AiOrchestratorService:
             raw_type = str(s.get("type") or "WORKER_TASK").strip().upper()
             if raw_type in {t.value for t in ALLOWED_TASK_TYPES}:
                 task_type = TaskType(raw_type)
-            elif "HTTP" in raw_type or "API" in raw_type or "WEBHOOK" in raw_type:
+            elif any(k in raw_type for k in ["HTTP", "API", "WEBHOOK", "REST"]):
                 task_type = TaskType.HTTP_TASK
-            elif "AI" in raw_type or "AGENT" in raw_type or "LLM" in raw_type or "SENTIMENT" in raw_type:
+            elif any(k in raw_type for k in ["AI", "AGENT", "LLM", "SENTIMENT", "OCR", "ANALYSIS"]):
                 task_type = TaskType.AI_AGENT_TASK
-            elif "NOTIF" in raw_type or "ALERT" in raw_type or "SLACK" in raw_type or "EMAIL" in raw_type:
+            elif any(k in raw_type for k in ["NOTIF", "ALERT", "SLACK", "EMAIL", "SMS", "PUSH"]):
                 task_type = TaskType.NOTIFICATION
             else:
                 task_type = TaskType.WORKER_TASK
@@ -216,17 +369,21 @@ class AiOrchestratorService:
             if raw_queue in SUPPORTED_QUEUES:
                 queue_name = raw_queue
             else:
-                # Default mapping based on task type
+                # Default mapping based on task type and semantics
                 if task_type == TaskType.AI_AGENT_TASK:
                     queue_name = "ai-agent"
                 elif task_type == TaskType.NOTIFICATION:
                     queue_name = "notification"
                 elif task_type == TaskType.HTTP_TASK:
                     queue_name = "default"
-                elif any(k in step_name.lower() for k in ["payment", "charge", "thanh toán"]):
+                elif any(k in step_name.lower() for k in ["payment", "charge", "thanh toán", "billing"]):
                     queue_name = "payment"
-                elif any(k in step_name.lower() for k in ["database", "db", "store", "persist", "kho", "lưu"]):
+                elif any(k in step_name.lower() for k in ["database", "db", "store", "persist", "kho", "lưu", "sql"]):
                     queue_name = "data-io"
+                elif any(k in step_name.lower() for k in ["inventory", "tồn kho"]):
+                    queue_name = "inventory"
+                elif any(k in step_name.lower() for k in ["ship", "logistics", "vận chuyển"]):
+                    queue_name = "logistics"
                 else:
                     queue_name = "compute"
 
@@ -264,7 +421,10 @@ class AiOrchestratorService:
                 )
             )
 
-        # Ensure all dependsOn only reference valid existing steps
+        if not sanitized_steps:
+            raise AppException.validation("Không có bước hợp lệ nào được tạo từ AI.")
+
+        # Ensure all dependsOn only reference valid existing steps and not self
         valid_id_set = {st.id for st in sanitized_steps}
         for st in sanitized_steps:
             st.dependsOn = [d for d in st.dependsOn if d in valid_id_set and d != st.id]
@@ -279,6 +439,7 @@ class AiOrchestratorService:
         from collections import deque
         q = deque([sid for sid, deg in in_degree.items() if deg == 0])
         visited: Set[str] = set()
+
         while q:
             u = q.popleft()
             visited.add(u)
@@ -287,8 +448,9 @@ class AiOrchestratorService:
                 if in_degree[v] == 0:
                     q.append(v)
 
-        # If cycles exist (unvisited nodes), remove backwards dependencies
+        # If cycles exist (unvisited nodes), prune backwards dependencies to restore acyclic property
         if len(visited) < len(sanitized_steps):
+            logger.warning("Cycle detected in AI-generated steps. Breaking cyclic edges using Kahn's sort.")
             for st in sanitized_steps:
                 if st.id not in visited:
                     st.dependsOn = [d for d in st.dependsOn if d in visited]
@@ -305,124 +467,66 @@ class AiOrchestratorService:
         )
 
     @classmethod
-    def _decompose_business_process_locally(cls, clean_prompt: str) -> AiGenerateWorkflowResponse:
-        """High-intelligence domain process decomposition with parallel branching and reliability."""
-        lower = clean_prompt.lower()
-
-        # 1. Customer Feedback & Sentiment Analysis
-        if any(w in lower for w in ["phân tích", "sentiment", "đánh giá", "review", "feedback", "cảm xúc"]):
-            name = "AI-Customer-Feedback-Analyzer"
-            desc = "Quy trình AI tự động thu thập đánh giá, phân loại cảm xúc khách hàng và định tuyến xử lý."
-            steps = [
-                DagStep(id="step-fetch-reviews", name="Fetch Customer Reviews", type=TaskType.HTTP_TASK, queue="default", dependsOn=[], maxRetries=2, timeoutSeconds=30),
-                DagStep(id="step-ai-sentiment", name="AI Sentiment & Topic Classification", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-fetch-reviews"], maxRetries=2, timeoutSeconds=60),
-                # Parallel branches
-                DagStep(id="step-ai-summary", name="AI Executive Summary Generation", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-ai-sentiment"], maxRetries=2, timeoutSeconds=90),
-                DagStep(id="step-alert-escalate", name="Escalate Urgent Issues to Slack", type=TaskType.HTTP_TASK, queue="default", dependsOn=["step-ai-sentiment"], maxRetries=2, timeoutSeconds=30),
-                # Fan-in Join
-                DagStep(id="step-persist-insights", name="Store Analytics Insights", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=["step-ai-summary", "step-alert-escalate"], maxRetries=3, timeoutSeconds=120),
-            ]
-            reasoning = "Đã thiết kế quy trình Agentic DAG gồm 5 bước: 2 bước AI Agent (phân loại sentiment & tạo tóm tắt điều hành), kết hợp định tuyến rẽ nhánh (branching) tới Slack và lưu trữ Data-IO."
-
-        # 2. E-commerce Order Fulfillment Saga
-        elif any(w in lower for w in ["đơn hàng", "đặt hàng", "thanh toán", "order", "fulfillment", "thương mại", "mua hàng", "bán hàng", "kho", "ship", "payment", "checkout"]):
-            name = "Order-Fulfillment-Saga"
-            desc = "Quy trình xử lý đơn hàng đa bước: kiểm tra thanh toán & tồn kho song song, đóng gói và giao vận."
-            steps = [
-                DagStep(id="receive-order", name="Receive Order", type=TaskType.HTTP_TASK, queue="default", dependsOn=[], maxRetries=2, timeoutSeconds=30),
-                DagStep(id="validate-order", name="Validate Order", type=TaskType.WORKER_TASK, queue="compute", dependsOn=["receive-order"], maxRetries=2, timeoutSeconds=60),
-                # Parallel branches
-                DagStep(id="check-payment", name="Check Payment", type=TaskType.WORKER_TASK, queue="payment", dependsOn=["validate-order"], maxRetries=2, timeoutSeconds=45),
-                DagStep(id="check-inventory", name="Check Inventory", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=["validate-order"], maxRetries=3, timeoutSeconds=45),
-                # Fan-in Join
-                DagStep(id="prepare-order", name="Prepare Order", type=TaskType.WORKER_TASK, queue="compute", dependsOn=["check-payment", "check-inventory"], maxRetries=2, timeoutSeconds=120),
-                DagStep(id="ship-order", name="Ship Order", type=TaskType.HTTP_TASK, queue="default", dependsOn=["prepare-order"], maxRetries=2, timeoutSeconds=60),
-                DagStep(id="notify-customer", name="Notify Customer", type=TaskType.NOTIFICATION, queue="notification", dependsOn=["ship-order"], maxRetries=2, timeoutSeconds=30),
-            ]
-            reasoning = "Đã thiết kế quy trình xử lý đơn hàng phân tán gồm 7 bước: sau khi kiểm tra đơn, hệ thống tự động rẽ nhánh song song (Branching) để trừ tiền và giữ hàng kho cùng lúc, sau đó hợp nhất để đóng gói, bàn giao vận chuyển và gửi thông báo hoàn tất."
-
-        # 3. Distributed ETL & Data Processing Pipeline
-        elif any(w in lower for w in ["etl", "data", "dữ liệu", "kho", "pipeline", "lake"]):
-            name = "Smart-Data-Processing-Pipeline"
-            desc = "Pipeline xử lý dữ liệu lớn kết hợp AI Data Quality Assessment và tự động tối ưu schema."
-            steps = [
-                DagStep(id="step-ingest-source", name="Ingest Raw Parquet Data", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=[], maxRetries=3, timeoutSeconds=300),
-                DagStep(id="step-ai-quality-check", name="AI Data Quality & Anomaly Detection", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-ingest-source"], maxRetries=2, timeoutSeconds=180),
-                DagStep(id="step-distributed-transform", name="Distributed Spark/Polars Transform", type=TaskType.WORKER_TASK, queue="compute", dependsOn=["step-ai-quality-check"], maxRetries=2, timeoutSeconds=600),
-                DagStep(id="step-load-warehouse", name="Upsert to Analytical Warehouse", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=["step-distributed-transform"], maxRetries=3, timeoutSeconds=300),
-                DagStep(id="step-notify-complete", name="Notify Completion & Telemetry", type=TaskType.NOTIFICATION, queue="notification", dependsOn=["step-load-warehouse"], maxRetries=1, timeoutSeconds=30),
-            ]
-            reasoning = "Pipeline được trang bị bước AI Anomaly Detection giữa giai đoạn nạp thô và biến đổi tính toán, giúp phát hiện sớm dữ liệu dị thường trước khi nạp vào Kho và bắn thông báo hoàn tất."
-
-        # 4. Financial KYC & Credit Underwriting
-        elif any(w in lower for w in ["kyc", "vay", "tín dụng", "loan", "hồ sơ", "tài chính", "ngân hàng"]):
-            name = "Intelligent-Loan-Origination-Flow"
-            desc = "Quy trình thẩm định hồ sơ vay tự động: OCR giấy tờ và tra cứu tín dụng song song, chấm điểm rủi ro bằng AI."
-            steps = [
-                DagStep(id="step-receive-application", name="Receive Loan Application", type=TaskType.HTTP_TASK, queue="default", dependsOn=[], maxRetries=2, timeoutSeconds=30),
-                # Parallel branches
-                DagStep(id="step-ocr-id-verification", name="AI OCR & Identity Verification", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-receive-application"], maxRetries=2, timeoutSeconds=90),
-                DagStep(id="step-credit-bureau-check", name="Query National Credit Bureau (CIC)", type=TaskType.HTTP_TASK, queue="default", dependsOn=["step-receive-application"], maxRetries=3, timeoutSeconds=60),
-                # Fan-in Join
-                DagStep(id="step-ai-risk-scoring", name="AI Underwriting Risk Scoring", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-ocr-id-verification", "step-credit-bureau-check"], maxRetries=2, timeoutSeconds=90),
-                DagStep(id="step-persist-decision", name="Persist Underwriting Decision", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=["step-ai-risk-scoring"], maxRetries=3, timeoutSeconds=60),
-                DagStep(id="step-notify-applicant", name="Send Decision SMS/Email Notification", type=TaskType.NOTIFICATION, queue="notification", dependsOn=["step-persist-decision"], maxRetries=2, timeoutSeconds=30),
-            ]
-            reasoning = "Quy trình kết hợp 2 nhánh chạy song song (OCR định danh và tra cứu điểm tín dụng), hợp nhất vào AI chấm điểm rủi ro và tự động gửi thông báo kết quả."
-
-        # 5. General Adaptive Business Decomposition
-        else:
-            slug = _slugify_vietnamese(clean_prompt, max_words=5)
-            name = f"Workflow-{slug}"
-            desc = f"Quy trình tự động hóa phân tán phân rã nghiệp vụ cho: '{clean_prompt}'"
-
-            steps = [
-                DagStep(id="step-ingest-request", name="Ingest Request & Payload Validation", type=TaskType.HTTP_TASK, queue="default", dependsOn=[], maxRetries=2, timeoutSeconds=30),
-                # Parallel branches
-                DagStep(id="step-ai-semantic-analysis", name="AI Semantic Assessment & Policy Engine", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-ingest-request"], maxRetries=2, timeoutSeconds=90),
-                DagStep(id="step-business-validation", name="Business Rule & Security Validation", type=TaskType.WORKER_TASK, queue="compute", dependsOn=["step-ingest-request"], maxRetries=3, timeoutSeconds=60),
-                # Fan-in Join
-                DagStep(id="step-core-execution", name="Distributed Core Processing", type=TaskType.WORKER_TASK, queue="compute", dependsOn=["step-ai-semantic-analysis", "step-business-validation"], maxRetries=3, timeoutSeconds=180),
-                DagStep(id="step-persist-state", name="Persist Audit & Transactional State", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=["step-core-execution"], maxRetries=3, timeoutSeconds=120),
-                DagStep(id="step-notify-dispatch", name="Dispatch Webhook & Final Notification", type=TaskType.NOTIFICATION, queue="notification", dependsOn=["step-persist-state"], maxRetries=2, timeoutSeconds=30),
-            ]
-            reasoning = f"Đã thiết kế quy trình 6 bước tối ưu cho '{clean_prompt}': rẽ nhánh song song kiểm tra AI & chính sách nghiệp vụ, hợp nhất xử lý tính toán, lưu trữ trạng thái và gửi thông báo hoàn tất."
-
-        dag = DagDefinition(steps=steps)
-        DagEngine.validate_dag(dag)
-
-        return AiGenerateWorkflowResponse(
-            name=name,
-            description=desc,
-            dag=dag,
-            reasoning=reasoning,
-        )
-
-    @classmethod
-    def generate_workflow(cls, prompt: str) -> AiGenerateWorkflowResponse:
+    def generate_workflow(
+        cls,
+        prompt: str,
+        auto_save: bool = False,
+        actor_user_id: Optional[int] = None,
+    ) -> AiGenerateWorkflowResponse:
         """
-        Generates a validated, production-grade DAG workflow from a business prompt.
-        Attempts 9Router (OpenAI-compatible AI Gateway) first; gracefully falls back to
-        the local business process decomposition engine if 9Router is unavailable.
+        Generates a validated, production-grade DAG workflow from a natural language business prompt
+        via a real LLM Provider (9Router / OpenAI / Antigravity Gateway).
+        Never returns a silent mock response when the LLM is down.
+        Optionally persists the generated workflow into the database if auto_save is True.
         """
         if not prompt or not prompt.strip():
             raise AppException.validation("Vui lòng cung cấp mô tả cho quy trình muốn tạo bằng AI.")
 
         clean_prompt = prompt.strip()
 
-        # 1. Attempt 9Router AI Gateway
-        router_resp = cls._call_9router(clean_prompt)
-        if router_resp:
-            try:
-                return cls._sanitize_and_repair_dag(router_resp, clean_prompt)
-            except Exception as e:
-                logger.warning("Sanitization of 9Router response failed (%s); using intelligent local decomposition.", e)
+        # 1. Invoke Real LLM Provider
+        llm_raw = cls._call_llm(SYSTEM_PROMPT, clean_prompt)
 
-        # 2. High-intelligence local decomposition engine
-        return cls._decompose_business_process_locally(clean_prompt)
+        # 2. Parse, Sanitize, Repair and Validate DAG
+        response = cls._sanitize_and_repair_dag(llm_raw, clean_prompt)
 
-    @staticmethod
-    def diagnose_failure(instance_id: int, task_id: Optional[int] = None) -> AiDiagnoseFailureResponse:
+        # 3. Optional Auto-Save to Database
+        if auto_save:
+            now = datetime.now(timezone.utc)
+            creator_id = actor_user_id or 1
+            wf = store.add_workflow(
+                WorkflowDefinition(
+                    id=0,
+                    name=response.name,
+                    version=1,
+                    description=response.description,
+                    dag=response.dag,
+                    isActive=True,
+                    createdBy=creator_id,
+                    createdAt=now,
+                    updatedAt=now,
+                )
+            )
+            response.workflowId = wf.id
+            store.record_audit(
+                action="CREATE_WORKFLOW_AI",
+                module="AI",
+                detail=f"Tự động tạo và lưu Workflow '{wf.name}' (ID: #{wf.id}) từ AI Prompt-to-DAG",
+                user_id=creator_id,
+            )
+
+        return response
+
+    @classmethod
+    def diagnose_failure(
+        cls,
+        instance_id: int,
+        task_id: Optional[int] = None,
+    ) -> AiDiagnoseFailureResponse:
+        """
+        Performs AI-driven Root Cause Analysis (RCA) and Self-Healing remediation
+        for failed executions or steps using LLM reasoning, with a resilient heuristic fallback.
+        """
         instance = store.get_instance(instance_id)
         if not instance:
             raise AppException.not_found(f"Execution #{instance_id}")
@@ -435,7 +539,7 @@ class AiOrchestratorService:
                 rootCause="Không phát hiện lỗi nghiêm trọng nào trong lượt chạy này.",
                 suggestedFix="Tất cả các task hiện tại đều hoạt động bình thường hoặc đang ở trạng thái chờ/chạy.",
                 severity="LOW",
-                autoFixable=False
+                autoFixable=False,
             )
 
         target_task = None
@@ -444,24 +548,81 @@ class AiOrchestratorService:
         if not target_task and failed_tasks:
             target_task = failed_tasks[0]
 
-        err_msg = target_task.errorMessage if target_task and target_task.errorMessage else (instance.errorMessage or "Task execution timed out")
+        err_msg = (
+            target_task.errorMessage
+            if target_task and target_task.errorMessage
+            else (instance.errorMessage or "Task execution timed out")
+        )
         step_name = target_task.stepName if target_task else "Unknown Step"
+        step_id = target_task.stepId if target_task else "unknown"
+        queue_name = target_task.queueName if target_task else "default"
+        retry_count = target_task.retryCount if target_task else 0
+        max_retries = target_task.maxRetries if target_task else 3
 
-        # Heuristic AI Diagnostics
+        # 1. Attempt LLM Diagnosis
+        try:
+            diag_prompt = f"""Execution Context:
+- Workflow Name: {instance.workflowName} (Instance #{instance.id})
+- Instance Status: {instance.status}
+- Failed Step Name: {step_name} (ID: {step_id})
+- Queue Name: {queue_name}
+- Retries: {retry_count}/{max_retries}
+- Error Message: {err_msg}
+- Input Payload: {instance.inputPayloadJson or 'None'}
+- Context Data: {instance.contextDataJson or 'None'}
+
+Please provide a precise Root Cause Analysis and Self-Healing recommendations in JSON."""
+
+            parsed = cls._call_llm(DIAGNOSE_SYSTEM_PROMPT, diag_prompt)
+            root_cause = str(parsed.get("rootCause") or f"Lỗi thực thi bước '{step_name}': {err_msg}").strip()
+            suggested_fix = str(parsed.get("suggestedFix") or "Kiểm tra worker node và tham số đầu vào.").strip()
+            severity = str(parsed.get("severity") or "HIGH").strip().upper()
+            if severity not in ("LOW", "MEDIUM", "HIGH", "CRITICAL"):
+                severity = "HIGH"
+            auto_fixable = bool(parsed.get("autoFixable", True))
+
+            return AiDiagnoseFailureResponse(
+                rootCause=root_cause,
+                suggestedFix=suggested_fix,
+                severity=severity,
+                autoFixable=auto_fixable,
+            )
+        except Exception as e:
+            logger.warning("LLM Diagnosis unavailable (%s), using structured heuristic diagnostics.", e)
+
+        # 2. Resilient Heuristic Fallback
         err_lower = err_msg.lower()
         if "timeout" in err_lower or "timed out" in err_lower:
-            root_cause = f"Bước '{step_name}' bị vượt quá ngưỡng thời gian chờ cấu hình (Timeout). Nguyên nhân có thể do downstream service quá tải hoặc worker node phản hồi chậm."
-            suggested_fix = "1. Tăng timeoutSeconds trong định nghĩa DAG lên 2x.\n2. Kiểm tra độ trễ mạng của Worker node xử lý queue.\n3. Kích hoạt Retry tự động với Exponential Backoff."
+            root_cause = (
+                f"Bước '{step_name}' bị vượt quá ngưỡng thời gian chờ cấu hình (Timeout). "
+                "Nguyên nhân có thể do downstream service quá tải hoặc worker node phản hồi chậm."
+            )
+            suggested_fix = (
+                "1. Tăng timeoutSeconds trong định nghĩa DAG lên 2x.\n"
+                "2. Kiểm tra độ trễ mạng và hàng đợi của Worker node xử lý queue.\n"
+                "3. Kích hoạt Retry tự động với Exponential Backoff."
+            )
             severity = "MEDIUM"
             auto_fixable = True
         elif "connection" in err_lower or "refused" in err_lower or "404" in err_lower:
-            root_cause = f"Lỗi kết nối ngoại vi tại bước '{step_name}': Không thể kết nối đến đích API hoặc endpoint từ chối kết nối (Connection Refused / Not Found)."
-            suggested_fix = "1. Kiểm tra URL endpoint và thông tin xác thực (API Key/Token).\n2. Xác nhận dịch vụ đích đang ONLINE và tường lửa không chặn cổng.\n3. Kiểm tra lại DNS hostname của worker."
+            root_cause = (
+                f"Lỗi kết nối ngoại vi tại bước '{step_name}': Không thể kết nối đến đích API "
+                "hoặc endpoint từ chối kết nối (Connection Refused / Not Found)."
+            )
+            suggested_fix = (
+                "1. Kiểm tra URL endpoint và thông tin xác thực (API Key/Token).\n"
+                "2. Xác nhận dịch vụ đích đang ONLINE và tường lửa không chặn cổng.\n"
+                "3. Kiểm tra lại DNS hostname của worker."
+            )
             severity = "HIGH"
             auto_fixable = False
         else:
             root_cause = f"Ngoại lệ runtime xảy ra trong quá trình thực thi bước '{step_name}': {err_msg}."
-            suggested_fix = "1. Kiểm tra định dạng dữ liệu trong Input Payload JSON của bước này.\n2. Xem logs chi tiết của Worker node được chỉ định.\n3. Nhấn 'Retry Step' sau khi điều chỉnh tham số đầu vào."
+            suggested_fix = (
+                "1. Kiểm tra định dạng dữ liệu trong Input Payload JSON của bước này.\n"
+                "2. Xem logs chi tiết của Worker node được chỉ định.\n"
+                "3. Nhấn 'Retry Step' sau khi điều chỉnh tham số đầu vào."
+            )
             severity = "HIGH"
             auto_fixable = True
 
@@ -469,5 +630,54 @@ class AiOrchestratorService:
             rootCause=root_cause,
             suggestedFix=suggested_fix,
             severity=severity,
-            autoFixable=auto_fixable
+            autoFixable=auto_fixable,
         )
+
+    @classmethod
+    def generate_offline_template(cls, prompt: str) -> AiGenerateWorkflowResponse:
+        """
+        Explicit offline template generator for simulations and disconnected demonstrations.
+        This is never called automatically to conceal LLM provider failures.
+        """
+        clean_prompt = prompt.strip() if prompt else "Custom Workflow"
+        lower = clean_prompt.lower()
+
+        if any(w in lower for w in ["phân tích", "sentiment", "đánh giá", "review", "feedback", "cảm xúc"]):
+            name = "AI-Customer-Feedback-Analyzer"
+            desc = "Quy trình AI tự động thu thập đánh giá, phân loại cảm xúc khách hàng và định tuyến xử lý."
+            steps = [
+                DagStep(id="step-fetch-reviews", name="Fetch Customer Reviews", type=TaskType.HTTP_TASK, queue="default", dependsOn=[], maxRetries=2, timeoutSeconds=30),
+                DagStep(id="step-ai-sentiment", name="AI Sentiment & Topic Classification", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-fetch-reviews"], maxRetries=2, timeoutSeconds=60),
+                DagStep(id="step-ai-summary", name="AI Executive Summary Generation", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-ai-sentiment"], maxRetries=2, timeoutSeconds=90),
+                DagStep(id="step-alert-escalate", name="Escalate Urgent Issues to Slack", type=TaskType.HTTP_TASK, queue="default", dependsOn=["step-ai-sentiment"], maxRetries=2, timeoutSeconds=30),
+                DagStep(id="step-persist-insights", name="Store Analytics Insights", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=["step-ai-summary", "step-alert-escalate"], maxRetries=3, timeoutSeconds=120),
+            ]
+            reasoning = "Đã thiết kế quy trình Agentic DAG gồm 5 bước: 2 bước AI Agent (phân loại sentiment & tạo tóm tắt điều hành), kết hợp định tuyến rẽ nhánh (branching) tới Slack và lưu trữ Data-IO."
+        elif any(w in lower for w in ["đơn hàng", "thanh toán", "order", "fulfillment", "thương mại", "kho", "ship"]):
+            name = "Order-Fulfillment-Saga"
+            desc = "Quy trình xử lý đơn hàng đa bước: kiểm tra thanh toán & tồn kho song song, đóng gói và giao vận."
+            steps = [
+                DagStep(id="receive-order", name="Receive Order", type=TaskType.HTTP_TASK, queue="default", dependsOn=[], maxRetries=2, timeoutSeconds=30),
+                DagStep(id="validate-order", name="Validate Order", type=TaskType.WORKER_TASK, queue="compute", dependsOn=["receive-order"], maxRetries=2, timeoutSeconds=60),
+                DagStep(id="check-payment", name="Check Payment", type=TaskType.WORKER_TASK, queue="payment", dependsOn=["validate-order"], maxRetries=2, timeoutSeconds=45),
+                DagStep(id="check-inventory", name="Check Inventory", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=["validate-order"], maxRetries=3, timeoutSeconds=45),
+                DagStep(id="prepare-order", name="Prepare Order", type=TaskType.WORKER_TASK, queue="compute", dependsOn=["check-payment", "check-inventory"], maxRetries=2, timeoutSeconds=120),
+                DagStep(id="ship-order", name="Ship Order", type=TaskType.HTTP_TASK, queue="default", dependsOn=["prepare-order"], maxRetries=2, timeoutSeconds=60),
+                DagStep(id="notify-customer", name="Notify Customer", type=TaskType.NOTIFICATION, queue="notification", dependsOn=["ship-order"], maxRetries=2, timeoutSeconds=30),
+            ]
+            reasoning = "Đã thiết kế quy trình xử lý đơn hàng phân tán gồm 7 bước: kiểm tra đơn hàng, rẽ nhánh song song kiểm tra thanh toán & kho, đóng gói, bàn giao vận chuyển và gửi thông báo."
+        else:
+            name = "Smart-Data-Processing-Pipeline"
+            desc = f"Quy trình xử lý tự động hóa: {clean_prompt}"
+            steps = [
+                DagStep(id="step-ingest-source", name="Ingest Raw Parquet Data", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=[], maxRetries=3, timeoutSeconds=300),
+                DagStep(id="step-ai-quality-check", name="AI Data Quality & Anomaly Detection", type=TaskType.AI_AGENT_TASK, queue="ai-agent", dependsOn=["step-ingest-source"], maxRetries=2, timeoutSeconds=180),
+                DagStep(id="step-distributed-transform", name="Distributed Spark/Polars Transform", type=TaskType.WORKER_TASK, queue="compute", dependsOn=["step-ai-quality-check"], maxRetries=2, timeoutSeconds=600),
+                DagStep(id="step-load-warehouse", name="Upsert to Analytical Warehouse", type=TaskType.WORKER_TASK, queue="data-io", dependsOn=["step-distributed-transform"], maxRetries=3, timeoutSeconds=300),
+                DagStep(id="step-notify-complete", name="Notify Completion & Telemetry", type=TaskType.NOTIFICATION, queue="notification", dependsOn=["step-load-warehouse"], maxRetries=1, timeoutSeconds=30),
+            ]
+            reasoning = "Pipeline được trang bị bước AI Anomaly Detection giữa giai đoạn nạp thô và biến đổi tính toán, giúp phát hiện sớm dữ liệu dị thường trước khi nạp vào Kho và bắn thông báo."
+
+        dag = DagDefinition(steps=steps)
+        DagEngine.validate_dag(dag)
+        return AiGenerateWorkflowResponse(name=name, description=desc, dag=dag, reasoning=reasoning)

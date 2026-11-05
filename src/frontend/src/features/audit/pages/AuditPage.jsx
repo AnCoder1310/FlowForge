@@ -154,6 +154,7 @@ export default function AuditPage() {
           width: 100%;
           padding-bottom: 28px;
           color: #17243a;
+          padding: 20px 25px;
         }
 
         .audit-header {
@@ -161,6 +162,7 @@ export default function AuditPage() {
           align-items: center;
           justify-content: space-between;
           gap: 20px;
+          padding: 12px 16px;
         }
 
         .audit-breadcrumb {
@@ -795,10 +797,7 @@ export default function AuditPage() {
       {/* HEADER */}
       <div className="audit-header">
         <div>
-          <div className="audit-breadcrumb">
-            Hệ thống <span>/</span> Quản trị <span>/</span>
-            <strong> Nhật ký hoạt động</strong>
-          </div>
+          
 
           <h1>Nhật ký hoạt động</h1>
           <p>

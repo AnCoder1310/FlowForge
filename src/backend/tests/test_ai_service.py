@@ -1,130 +1,340 @@
+import json
 from datetime import datetime, timezone
 import pytest
-from app.domain.models import StepStatus, TaskExecution, TaskType, WorkflowInstance, WorkflowStatus
+import httpx
+
+from app.core.exceptions import AppException
+from app.domain.models import (
+    StepStatus,
+    TaskExecution,
+    TaskType,
+    WorkflowInstance,
+    WorkflowStatus,
+)
 from app.persistence.store import store
 from app.services.ai_service import AiOrchestratorService
 
-def test_ai_generate_workflow_feedback():
-    resp = AiOrchestratorService.generate_workflow("Tự động phân tích đánh giá review của khách hàng")
-    assert resp.name == "AI-Customer-Feedback-Analyzer"
-    assert len(resp.dag.steps) == 5
-    step_types = [s.type for s in resp.dag.steps]
-    assert TaskType.AI_AGENT_TASK in step_types
-    assert "Đã thiết kế quy trình Agentic DAG" in resp.reasoning
 
-def test_ai_generate_workflow_etl():
-    resp = AiOrchestratorService.generate_workflow("Tạo pipeline ETL xử lý dữ liệu lớn")
-    assert "Data" in resp.name
-    assert len(resp.dag.steps) >= 4
-    assert any(s.type == TaskType.AI_AGENT_TASK for s in resp.dag.steps)
+SAMPLE_LLM_DAG = {
+    "name": "E-Commerce-Fulfillment-Flow",
+    "description": "Multi-step order fulfillment with parallel payments and inventory check",
+    "reasoning": "Tasks run in parallel then merge at packaging.",
+    "dag": {
+        "steps": [
+            {
+                "id": "receive-order",
+                "name": "Receive Order",
+                "type": "HTTP_TASK",
+                "queue": "default",
+                "dependsOn": [],
+                "maxRetries": 2,
+                "timeoutSeconds": 30,
+            },
+            {
+                "id": "validate-order",
+                "name": "Validate Order",
+                "type": "WORKER_TASK",
+                "queue": "compute",
+                "dependsOn": ["receive-order"],
+                "maxRetries": 3,
+                "timeoutSeconds": 60,
+            },
+            {
+                "id": "check-payment",
+                "name": "Check Payment",
+                "type": "WORKER_TASK",
+                "queue": "payment",
+                "dependsOn": ["validate-order"],
+                "maxRetries": 2,
+                "timeoutSeconds": 45,
+            },
+            {
+                "id": "check-inventory",
+                "name": "Check Inventory",
+                "type": "WORKER_TASK",
+                "queue": "data-io",
+                "dependsOn": ["validate-order"],
+                "maxRetries": 3,
+                "timeoutSeconds": 45,
+            },
+            {
+                "id": "prepare-order",
+                "name": "Prepare Order",
+                "type": "WORKER_TASK",
+                "queue": "compute",
+                "dependsOn": ["check-payment", "check-inventory"],
+                "maxRetries": 2,
+                "timeoutSeconds": 120,
+            },
+            {
+                "id": "notify-customer",
+                "name": "Notify Customer",
+                "type": "NOTIFICATION",
+                "queue": "notification",
+                "dependsOn": ["prepare-order"],
+                "maxRetries": 1,
+                "timeoutSeconds": 30,
+            },
+        ]
+    },
+}
 
-def test_ai_diagnose_failure_timeout():
-    now = datetime.now(timezone.utc)
-    inst = store.add_instance(WorkflowInstance(
-        id=0,
-        workflowId=1,
-        workflowName="Test-Flow",
-        version=1,
-        status=WorkflowStatus.FAILED,
-        inputPayloadJson="{}",
-        contextDataJson="{}",
-        errorMessage="HTTP connection timed out while querying third-party service",
-        createdAt=now,
-        updatedAt=now,
-    ))
-    resp = AiOrchestratorService.diagnose_failure(inst.id, None)
-    assert resp.severity in ["LOW", "MEDIUM", "HIGH"]
-    assert len(resp.suggestedFix) > 0
-    assert "timeout" in resp.rootCause.lower() or "timeout" in resp.suggestedFix.lower()
 
-@pytest.mark.anyio
-async def test_ai_generate_workflow_api(client, admin_headers):
-    res = await client.post(
-        "/api/v1/ai/generate-workflow",
-        headers=admin_headers,
-        json={"prompt": "Xây dựng pipeline AI phân loại văn bản"}
+def test_ai_generate_workflow_with_mocked_llm(monkeypatch):
+    monkeypatch.setattr(
+        AiOrchestratorService,
+        "_call_llm",
+        lambda sys_prompt, usr_prompt, model=None: SAMPLE_LLM_DAG,
     )
-    assert res.status_code == 200
-    data = res.json()
-    assert "dag" in data
-    assert len(data["dag"]["steps"]) > 0
 
-def test_ai_generate_workflow_business_decomposition_and_dependencies():
-    resp = AiOrchestratorService.generate_workflow("Xử lý đơn hàng thương mại điện tử, thanh toán và tồn kho song song, giao hàng")
-    assert resp.name == "Order-Fulfillment-Saga"
+    resp = AiOrchestratorService.generate_workflow(
+        "Xử lý đơn hàng thương mại điện tử, thanh toán và tồn kho song song, giao hàng"
+    )
+    assert resp.name == "E-Commerce-Fulfillment-Flow"
     steps = resp.dag.steps
-    assert len(steps) == 7
+    assert len(steps) == 6
 
-    # 1. Decomposition check: root input step exists
+    # Root input step
     root_steps = [s for s in steps if not s.dependsOn]
     assert len(root_steps) == 1
     assert root_steps[0].id == "receive-order"
 
-    # 2. Parallel dependency detection: check-payment & check-inventory run in parallel after validate-order
+    # Parallel branches
     pay_step = next(s for s in steps if s.id == "check-payment")
     inv_step = next(s for s in steps if s.id == "check-inventory")
     assert pay_step.dependsOn == ["validate-order"]
     assert inv_step.dependsOn == ["validate-order"]
 
-    # 3. Fan-in merge: prepare-order depends on both branches
-    prepare_step = next(s for s in steps if s.id == "prepare-order")
-    assert set(prepare_step.dependsOn) == {"check-payment", "check-inventory"}
+    # Fan-in join
+    prep_step = next(s for s in steps if s.id == "prepare-order")
+    assert set(prep_step.dependsOn) == {"check-payment", "check-inventory"}
 
-    # 4. Classification & Queues
-    assert pay_step.queue == "payment"
-    notify_step = next(s for s in steps if s.id == "notify-customer")
-    assert notify_step.type == TaskType.NOTIFICATION
-    assert notify_step.queue == "notification"
 
-    # 5. Reliability: maxRetries and timeoutSeconds are bounded
-    for s in steps:
-        assert 1 <= s.maxRetries <= 5
-        assert 15 <= s.timeoutSeconds <= 600
+def test_ai_generate_workflow_auto_save(monkeypatch):
+    monkeypatch.setattr(
+        AiOrchestratorService,
+        "_call_llm",
+        lambda sys_prompt, usr_prompt, model=None: SAMPLE_LLM_DAG,
+    )
 
-def test_ai_sanitize_and_repair_dag():
-    raw_bad_data = {
+    resp = AiOrchestratorService.generate_workflow(
+        "Tự động lưu quy trình xử lý đơn hàng",
+        auto_save=True,
+        actor_user_id=1,
+    )
+    assert resp.workflowId is not None
+    saved_wf = store.get_workflow(resp.workflowId)
+    assert saved_wf is not None
+    assert saved_wf.name == "E-Commerce-Fulfillment-Flow"
+    assert len(saved_wf.dag.steps) == 6
+
+
+def test_ai_generate_workflow_empty_prompt():
+    with pytest.raises(AppException) as exc_info:
+        AiOrchestratorService.generate_workflow("")
+    assert exc_info.value.status_code == 400
+    assert "cung cấp mô tả" in exc_info.value.detail_message
+
+
+def test_ai_generate_workflow_provider_unreachable(monkeypatch):
+    def mock_call(sys_prompt, usr_prompt, model=None):
+        raise AppException.service_unavailable(
+            "Không thể kết nối đến AI Gateway tại 'http://localhost:20128/v1'."
+        )
+
+    monkeypatch.setattr(AiOrchestratorService, "_call_llm", mock_call)
+
+    with pytest.raises(AppException) as exc_info:
+        AiOrchestratorService.generate_workflow("Tạo pipeline dữ liệu")
+    assert exc_info.value.status_code == 503
+    assert "Không thể kết nối" in exc_info.value.detail_message
+
+
+def test_ai_generate_workflow_timeout(monkeypatch):
+    def mock_call(sys_prompt, usr_prompt, model=None):
+        raise AppException.gateway_timeout("AI Provider phản hồi vượt quá thời gian chờ (30.0s).")
+
+    monkeypatch.setattr(AiOrchestratorService, "_call_llm", mock_call)
+
+    with pytest.raises(AppException) as exc_info:
+        AiOrchestratorService.generate_workflow("Tạo pipeline dữ liệu")
+    assert exc_info.value.status_code == 504
+    assert "thời gian chờ" in exc_info.value.detail_message
+
+
+def test_ai_json_parsing_and_markdown_stripping():
+    # Markdown fenced json with trailing comma
+    raw_markdown = """```json
+    {
+      "name": "Pipeline-Test",
+      "description": "Test description",
+      "reasoning": "Test reasoning",
+      "dag": {
+        "steps": [
+          {
+            "id": "step-1",
+            "name": "Fetch",
+            "type": "HTTP_TASK",
+            "queue": "default",
+            "dependsOn": [],
+            "maxRetries": 2,
+            "timeoutSeconds": 30,
+          },
+        ]
+      }
+    }
+    ```"""
+    parsed = AiOrchestratorService._parse_llm_json(raw_markdown)
+    assert parsed["name"] == "Pipeline-Test"
+    assert len(parsed["dag"]["steps"]) == 1
+
+    # Invalid JSON
+    with pytest.raises(AppException) as exc_info:
+        AiOrchestratorService._parse_llm_json("This is not JSON at all")
+    assert exc_info.value.status_code == 400
+
+
+def test_ai_sanitize_and_repair_dag_cycles_and_corrupt_data():
+    raw_corrupt = {
         "name": "Corrupt-DAG-Test",
-        "description": "Test DAG with corrupt dependencies and unsupported types",
+        "description": "DAG with duplicates, unknown queues, and circular dependencies",
         "reasoning": "Self-healing test",
         "dag": {
             "steps": [
-                {"id": "step-1", "name": "Step 1", "type": "UNKNOWN_CUSTOM_TYPE", "queue": "invalid_queue", "dependsOn": ["step-1", "non-existent-step"], "maxRetries": 999, "timeoutSeconds": 9999},
-                {"id": "step-1", "name": "Step 1 Duplicate", "type": "NOTIFICATION", "queue": "notification", "dependsOn": ["step-1"], "maxRetries": -5, "timeoutSeconds": 0},
+                {
+                    "id": "step-a",
+                    "name": "Step A",
+                    "type": "UNKNOWN_CUSTOM_TYPE",
+                    "queue": "unsupported_queue",
+                    "dependsOn": ["step-b"],  # Cycle: A depends on B, B depends on A
+                    "maxRetries": 999,
+                    "timeoutSeconds": 9999,
+                },
+                {
+                    "id": "step-b",
+                    "name": "Step B",
+                    "type": "AI_AGENT_TASK",
+                    "queue": "ai-agent",
+                    "dependsOn": ["step-a"],  # Cycle!
+                    "maxRetries": -5,
+                    "timeoutSeconds": 0,
+                },
+                {
+                    "id": "step-a",  # Duplicate ID
+                    "name": "Step A Duplicate",
+                    "type": "NOTIFICATION",
+                    "queue": "notification",
+                    "dependsOn": ["non-existent-step", "step-a"],  # Non-existent and self
+                    "maxRetries": 2,
+                    "timeoutSeconds": 30,
+                },
             ]
-        }
+        },
     }
-    repaired = AiOrchestratorService._sanitize_and_repair_dag(raw_bad_data, "Test prompt")
-    assert len(repaired.dag.steps) == 2
-    # Ensure IDs are unique
-    step_ids = [s.id for s in repaired.dag.steps]
+
+    repaired = AiOrchestratorService._sanitize_and_repair_dag(raw_corrupt, "Test prompt")
+    steps = repaired.dag.steps
+    assert len(steps) == 3
+
+    # 1. Unique IDs
+    step_ids = [s.id for s in steps]
     assert len(step_ids) == len(set(step_ids))
-    # Ensure no self dependency
-    for s in repaired.dag.steps:
+
+    # 2. No self dependency
+    for s in steps:
         assert s.id not in s.dependsOn
-    # Ensure type was normalized to valid TaskType
-    assert repaired.dag.steps[0].type in [TaskType.WORKER_TASK, TaskType.HTTP_TASK, TaskType.AI_AGENT_TASK, TaskType.NOTIFICATION]
-    # Ensure retries and timeouts bounded
-    assert repaired.dag.steps[0].maxRetries <= 5
-    assert repaired.dag.steps[0].timeoutSeconds <= 600
 
-def test_ai_9router_mock_success(monkeypatch):
-    mock_response = {
-        "name": "9Router-Decomposed-Pipeline",
-        "description": "Pipeline generated by 9Router AI Gateway",
-        "reasoning": "Decomposed 4 distinct stages with AI sentiment and notification",
-        "dag": {
-            "steps": [
-                {"id": "fetch-data", "name": "Fetch Incoming Webhook", "type": "HTTP_TASK", "queue": "default", "dependsOn": [], "maxRetries": 2, "timeoutSeconds": 30},
-                {"id": "ai-analyze", "name": "AI Sentiment Analysis", "type": "AI_AGENT_TASK", "queue": "ai-agent", "dependsOn": ["fetch-data"], "maxRetries": 2, "timeoutSeconds": 60},
-                {"id": "save-db", "name": "Persist to Postgres", "type": "WORKER_TASK", "queue": "data-io", "dependsOn": ["ai-analyze"], "maxRetries": 3, "timeoutSeconds": 120},
-                {"id": "notify-slack", "name": "Send Slack Alert", "type": "NOTIFICATION", "queue": "notification", "dependsOn": ["save-db"], "maxRetries": 1, "timeoutSeconds": 30},
-            ]
-        }
+    # 3. Normalized types and queues
+    for s in steps:
+        assert s.type in [
+            TaskType.WORKER_TASK,
+            TaskType.HTTP_TASK,
+            TaskType.AI_AGENT_TASK,
+            TaskType.NOTIFICATION,
+        ]
+        assert 1 <= s.maxRetries <= 5
+        assert 15 <= s.timeoutSeconds <= 600
+
+    # 4. Kahn's algorithm cycle resolution: graph must be acyclic
+    from app.domain.dag_engine import DagEngine
+    # If validate_dag does not raise an exception, the cycle was cleanly broken
+    DagEngine.validate_dag(repaired.dag)
+
+
+def test_ai_diagnose_failure_heuristic_fallback():
+    now = datetime.now(timezone.utc)
+    inst = store.add_instance(
+        WorkflowInstance(
+            id=0,
+            workflowId=1,
+            workflowName="Test-Failure-Flow",
+            version=1,
+            status=WorkflowStatus.FAILED,
+            inputPayloadJson="{}",
+            contextDataJson="{}",
+            errorMessage="HTTP connection timed out while querying third-party service",
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+
+    # When LLM is not responding, falls back to heuristic diagnostics
+    resp = AiOrchestratorService.diagnose_failure(inst.id, None)
+    assert resp.severity in ["LOW", "MEDIUM", "HIGH"]
+    assert len(resp.suggestedFix) > 0
+    assert "timeout" in resp.rootCause.lower() or "timeout" in resp.suggestedFix.lower()
+
+
+def test_ai_diagnose_failure_with_mocked_llm(monkeypatch):
+    mock_diag = {
+        "rootCause": "Payment gateway rejected API token due to expired credentials.",
+        "suggestedFix": "1. Rotate Stripe Secret Key in Vault.\n2. Re-trigger task execution.",
+        "severity": "CRITICAL",
+        "autoFixable": False,
     }
-    monkeypatch.setattr(AiOrchestratorService, "_call_9router", lambda prompt: mock_response)
+    monkeypatch.setattr(
+        AiOrchestratorService,
+        "_call_llm",
+        lambda sys_prompt, usr_prompt, model=None: mock_diag,
+    )
 
-    res = AiOrchestratorService.generate_workflow("Phân tích dữ liệu bằng AI từ 9Router")
-    assert res.name == "9Router-Decomposed-Pipeline"
-    assert len(res.dag.steps) == 4
-    assert res.dag.steps[1].type == TaskType.AI_AGENT_TASK
-    assert res.dag.steps[3].queue == "notification"
+    now = datetime.now(timezone.utc)
+    inst = store.add_instance(
+        WorkflowInstance(
+            id=0,
+            workflowId=1,
+            workflowName="Payment-Processing-Flow",
+            version=1,
+            status=WorkflowStatus.FAILED,
+            inputPayloadJson="{}",
+            contextDataJson="{}",
+            errorMessage="Unauthorized: Invalid API key",
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+
+    resp = AiOrchestratorService.diagnose_failure(inst.id, None)
+    assert resp.severity == "CRITICAL"
+    assert "Stripe" in resp.suggestedFix or "credentials" in resp.rootCause
+    assert resp.autoFixable is False
+
+
+@pytest.mark.anyio
+async def test_ai_generate_workflow_api(client, admin_headers, monkeypatch):
+    monkeypatch.setattr(
+        AiOrchestratorService,
+        "_call_llm",
+        lambda sys_prompt, usr_prompt, model=None: SAMPLE_LLM_DAG,
+    )
+
+    res = await client.post(
+        "/api/v1/ai/generate-workflow",
+        headers=admin_headers,
+        json={"prompt": "Xây dựng pipeline AI phân loại văn bản"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "dag" in data
+    assert len(data["dag"]["steps"]) == 6
+    assert data["name"] == "E-Commerce-Fulfillment-Flow"

@@ -25,3 +25,15 @@ class AppException(HTTPException):
     @classmethod
     def conflict(cls, message: str) -> "AppException":
         return cls(409, "CONFLICT", message)
+
+    @classmethod
+    def bad_gateway(cls, message: str) -> "AppException":
+        return cls(502, "BAD_GATEWAY", message)
+
+    @classmethod
+    def service_unavailable(cls, message: str) -> "AppException":
+        return cls(503, "SERVICE_UNAVAILABLE", message)
+
+    @classmethod
+    def gateway_timeout(cls, message: str) -> "AppException":
+        return cls(504, "GATEWAY_TIMEOUT", message)
