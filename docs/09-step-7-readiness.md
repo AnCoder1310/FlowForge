@@ -3,7 +3,7 @@
 > **Trạng thái thiết kế:** READY AS TARGET SPECIFICATION  
 > **Trạng thái thực thi:** HOÀN THIỆN ĐẦY ĐỦ (FastAPI Backend + React Console + Test Suites)
 
-Hệ thống FlowForge (Distributed Workflow Orchestration Platform - DWOP) đã được hiện thực hóa đầy đủ cả backend engine, frontend console, database schema và bộ kiểm thử tự động.
+Hệ thống FlowForge (FlowForge- DWOP) đã được hiện thực hóa đầy đủ cả backend engine, frontend console, database schema và bộ kiểm thử tự động.
 
 ## 1. Kết Quả Kiểm Thử Tự Động (Automated Test Evidence)
 

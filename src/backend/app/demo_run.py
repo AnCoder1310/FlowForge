@@ -8,7 +8,7 @@ from app.services.ai_service import AiOrchestratorService
 
 def run_simulation():
     print("======================================================================")
-    print("  🚀 DISTRIBUTED WORKFLOW ORCHESTRATION PLATFORM — LIVE SIMULATION")
+    print("  🚀 FlowForge— LIVE SIMULATION")
     print("======================================================================")
     
     # 1. User Context

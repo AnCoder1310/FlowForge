@@ -194,7 +194,7 @@ def test_ai_json_parsing_and_markdown_stripping():
     assert exc_info.value.status_code == 400
 
 
-def test_ai_sanitize_and_repair_dag_cycles_and_corrupt_data():
+def test_ai_rejects_duplicate_ids_and_cycles_instead_of_repairing_them():
     raw_corrupt = {
         "name": "Corrupt-DAG-Test",
         "description": "DAG with duplicates, unknown queues, and circular dependencies",
@@ -232,33 +232,58 @@ def test_ai_sanitize_and_repair_dag_cycles_and_corrupt_data():
         },
     }
 
-    repaired = AiOrchestratorService._sanitize_and_repair_dag(raw_corrupt, "Test prompt")
-    steps = repaired.dag.steps
-    assert len(steps) == 3
+    with pytest.raises(AppException, match="Duplicate step ID"):
+        AiOrchestratorService._normalize_and_validate_dag(raw_corrupt, "Test prompt")
 
-    # 1. Unique IDs
-    step_ids = [s.id for s in steps]
-    assert len(step_ids) == len(set(step_ids))
 
-    # 2. No self dependency
-    for s in steps:
-        assert s.id not in s.dependsOn
+def test_ai_rejects_explicit_fraud_and_approval_cycle_without_repairing():
+    raw = {
+        "name": "Fraud-Approval",
+        "dag": {"steps": [
+            {
+                "id": "fraud-detection",
+                "name": "Fraud Detection",
+                "dependsOn": ["transaction-approval"],
+            },
+            {
+                "id": "transaction-approval",
+                "name": "Transaction Approval",
+                "dependsOn": ["fraud-detection"],
+            },
+        ]},
+    }
 
-    # 3. Normalized types and queues
-    for s in steps:
-        assert s.type in [
-            TaskType.WORKER_TASK,
-            TaskType.HTTP_TASK,
-            TaskType.AI_AGENT_TASK,
-            TaskType.NOTIFICATION,
-        ]
-        assert 1 <= s.maxRetries <= 5
-        assert 15 <= s.timeoutSeconds <= 600
+    with pytest.raises(AppException) as exc_info:
+        AiOrchestratorService._normalize_and_validate_dag(
+            raw,
+            "Fraud Detection depends on Transaction Approval, and "
+            "Transaction Approval depends on Fraud Detection.",
+        )
+    assert exc_info.value.error_code == "CIRCULAR_DEPENDENCY"
+    assert exc_info.value.metadata["cycleNodes"] == ["fraud-detection", "transaction-approval"]
 
-    # 4. Kahn's algorithm cycle resolution: graph must be acyclic
-    from app.domain.dag_engine import DagEngine
-    # If validate_dag does not raise an exception, the cycle was cleanly broken
-    DagEngine.validate_dag(repaired.dag)
+
+def test_ai_rejects_acyclic_llm_dag_that_drops_the_user_requested_cycle():
+    raw = {
+        "name": "Fraud-Approval-Chain",
+        "dag": {"steps": [
+            {"id": "transaction-approval", "name": "Transaction Approval", "dependsOn": []},
+            {
+                "id": "fraud-detection",
+                "name": "Fraud Detection",
+                "dependsOn": ["transaction-approval"],
+            },
+            {"id": "capture-result", "name": "Capture Result", "dependsOn": ["fraud-detection"]},
+            {"id": "notify-customer", "name": "Notify Customer", "dependsOn": ["capture-result"]},
+        ]},
+    }
+
+    with pytest.raises(AppException, match="omitted required dependency"):
+        AiOrchestratorService._normalize_and_validate_dag(
+            raw,
+            "Fraud Detection depends on Transaction Approval, and "
+            "Transaction Approval depends on Fraud Detection.",
+        )
 
 
 def test_ai_diagnose_failure_heuristic_fallback():

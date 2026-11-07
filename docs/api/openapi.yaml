@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: FlowForge — Distributed Workflow Orchestration Platform API
+  title: FlowForge — FlowForgeAPI
   version: 1.0.0
   description: REST API specification for FlowForge (DWOP). Covers authentication,
     workflows DAG definitions, execution runs, distributed worker node queues, AI

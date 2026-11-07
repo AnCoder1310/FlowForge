@@ -1,6 +1,6 @@
 # C2 — Container
 
-> **Purpose:** Zoom into the Distributed Workflow Orchestration Platform boundary and describe runtime and storage containers, protocols, and data flow.
+> **Purpose:** Zoom into the FlowForgeboundary and describe runtime and storage containers, protocols, and data flow.
 
 ```mermaid
 flowchart TB
@@ -8,7 +8,7 @@ flowchart TB
     reader(["Platform Observer"])
     workers(["Distributed Worker Nodes<br/><i>[Compute Instances / Daemons]</i>"])
 
-    subgraph platform["Distributed Workflow Orchestration Platform [Boundary]"]
+    subgraph platform["FlowForge[Boundary]"]
         direction TB
         subgraph presentation["Presentation Layer"]
             web["Web Console<br/><i>[Container: React 18 + Vite SPA]</i><br/>Interactive DAG visualizer, executions timeline,<br/>telemetry dashboard, and dark/light theme"]

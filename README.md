@@ -1,4 +1,4 @@
-# FlowForge — Distributed Workflow Orchestration Platform (DWOP)
+# FlowForge — FlowForge(DWOP)
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -59,7 +59,7 @@ Requirements define what FlowForge must do, who uses it, the value delivered, an
 The V1-V2 backlog includes 13 core user stories. These stories cover authentication, cluster dashboard, workflow DAG definition, AI prompt-to-DAG generation, execution triggering, real-time step progress tracking, execution cancellation, AI failure diagnosis and self-healing, worker queue monitoring, audit logs, user RBAC, personal profile management, and production-ready conditional branching.
 Before a user story is ready for development, it is checked using the INVEST criteria.
 
-| Criterion | Meaning in FlowForge Distributed Workflow Orchestration Platform |
+| Criterion | Meaning in FlowForge FlowForge|
 |---|---|
 | **Independent** | Each story provides a distinct capability (e.g. DAG cycle validation is independent of worker polling; conditional branching cascades without blocking other branches). |
 | **Negotiable** | UI layouts and visualization formats can evolve as long as core orchestration invariants, state machine transitions, and RBAC rules remain intact. |

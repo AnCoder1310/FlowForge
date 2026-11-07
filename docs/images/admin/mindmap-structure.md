@@ -1,4 +1,4 @@
-# Distributed Workflow Orchestration Platform (DWOP)
+# FlowForge(DWOP)
 
 ## 1. Master Orchestrator (Backend Core)
 ### 1.1. Kiến Trúc FastAPI Async

@@ -1,6 +1,6 @@
 # C1 — System Context
 
-> **Purpose:** Illustrate who interacts with the Distributed Workflow Orchestration Platform (DWOP) and the platform's core boundaries, independent of internal implementation technologies.
+> **Purpose:** Illustrate who interacts with the FlowForge(DWOP) and the platform's core boundaries, independent of internal implementation technologies.
 
 ```mermaid
 flowchart LR
@@ -10,7 +10,7 @@ flowchart LR
     viewer(["Platform Observer"])
 
     subgraph boundary[" "]
-        dwop["Distributed Workflow Orchestration Platform (DWOP)<br/><i>[Software System]</i><br/>Orchestrates distributed DAG workflows, validates cycles,<br/>dispatches tasks across isolated worker queues,<br/>automates self-healing with AI, and records audit trails."]
+        dwop["FlowForge(DWOP)<br/><i>[Software System]</i><br/>Orchestrates distributed DAG workflows, validates cycles,<br/>dispatches tasks across isolated worker queues,<br/>automates self-healing with AI, and records audit trails."]
     end
 
     admin -- "manages users, cluster config, and audit trail" --> dwop
@@ -23,7 +23,7 @@ flowchart LR
 
 ## System Boundary
 
-Distributed Workflow Orchestration Platform (FlowForge DWOP) serves as the **Master Orchestration Brain** for engineering and DevOps teams.
+FlowForge(FlowForge DWOP) serves as the **Master Orchestration Brain** for engineering and DevOps teams.
 
 It is strictly responsible for:
 1. **DAG Graph Validation:** Topological sorting and cycle detection using Kahn's Algorithm.

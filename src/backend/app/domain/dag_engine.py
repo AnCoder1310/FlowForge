@@ -1,51 +1,12 @@
-from collections import deque
 from typing import List, Set
 from app.core.exceptions import AppException
 from app.domain.models import DagDefinition, DagStep
+from app.domain.dag_validation import KahnScheduler
 
 class DagEngine:
     @staticmethod
     def validate_dag(dag: DagDefinition) -> None:
-        if not dag.steps:
-            raise AppException.validation("Workflow must define at least one step.")
-
-        step_ids: Set[str] = set()
-        for step in dag.steps:
-            if not step.id or not step.id.strip():
-                raise AppException.validation("Step id cannot be empty.")
-            step_id_clean = step.id.strip()
-            if step_id_clean in step_ids:
-                raise AppException.validation(f"Duplicate step ID '{step.id}' found in workflow.")
-            step_ids.add(step_id_clean)
-
-        for step in dag.steps:
-            for dep in step.dependsOn:
-                if dep not in step_ids:
-                    raise AppException.validation(f"Step '{step.id}' depends on non-existent step '{dep}'.")
-                if step.id == dep:
-                    raise AppException.validation(f"Step '{step.id}' cannot depend on itself.")
-
-        # Cycle detection using Kahn's algorithm
-        in_degree = {step.id: len(step.dependsOn) for step in dag.steps}
-        adj = {step.id: [] for step in dag.steps}
-
-        for step in dag.steps:
-            for dep in step.dependsOn:
-                adj[dep].append(step.id)
-
-        queue = deque([step_id for step_id, degree in in_degree.items() if degree == 0])
-        visited_count = 0
-
-        while queue:
-            u = queue.popleft()
-            visited_count += 1
-            for v in adj[u]:
-                in_degree[v] -= 1
-                if in_degree[v] == 0:
-                    queue.append(v)
-
-        if visited_count != len(dag.steps):
-            raise AppException.validation("Cyclic dependency detected in workflow DAG definition.")
+        DagEngine.compute_execution_layers(dag)
 
     @staticmethod
     def compute_execution_layers(dag: DagDefinition) -> List[List[str]]:
@@ -53,25 +14,19 @@ class DagEngine:
         Topological stage partitioning using Kahn's algorithm.
         Returns a list of stages (layers), where all steps in a layer can be executed in parallel.
         """
-        DagEngine.validate_dag(dag)
-        in_degree = {step.id: len(step.dependsOn) for step in dag.steps}
-        adj = {step.id: [] for step in dag.steps}
-        for step in dag.steps:
-            for dep in step.dependsOn:
-                adj[dep].append(step.id)
-
-        current_layer = [step.id for step in dag.steps if in_degree[step.id] == 0]
-        layers = []
-        while current_layer:
-            layers.append(current_layer)
-            next_layer = []
-            for u in current_layer:
-                for v in adj[u]:
-                    in_degree[v] -= 1
-                    if in_degree[v] == 0:
-                        next_layer.append(v)
-            current_layer = next_layer
-        return layers
+        analysis = KahnScheduler.analyze(dag)
+        if analysis.execution_plan is None:
+            raise AppException.circular_dependency(
+                "Phát hiện chu trình phụ thuộc trong DAG; workflow không thể được thực thi. "
+                f"Các tác vụ trong chu trình: {analysis.cycle_nodes}. "
+                f"Các tác vụ bị chu trình chặn: {analysis.blocked_nodes}. "
+                f"Kahn đã xử lý {analysis.processed_count}/{len(dag.steps)} tác vụ.",
+                cycle_nodes=analysis.cycle_nodes,
+                blocked_nodes=analysis.blocked_nodes,
+                processed_count=analysis.processed_count,
+                total_nodes=len(dag.steps),
+            )
+        return analysis.execution_plan
 
     @staticmethod
     def get_ready_steps(

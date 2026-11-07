@@ -28,6 +28,7 @@ class ExecutionService:
         if not wf.isActive:
             raise AppException.validation(f"Workflow '{wf.name}' is currently inactive.")
 
+        execution_plan = DagEngine.compute_execution_layers(wf.dag)
         now = datetime.now(timezone.utc)
         payload = req.inputPayloadJson or "{}"
 
@@ -47,17 +48,14 @@ class ExecutionService:
             createdAt=now,
             updatedAt=now,
         )
-        created_instance = store.add_instance(instance)
-
         # Initialize all steps from DAG definition
-        ready_steps = DagEngine.get_ready_steps(wf.dag, set(), set())
-        ready_step_ids = {s.id for s in ready_steps}
-        created_tasks = []
+        ready_step_ids = set(execution_plan[0])
+        tasks = []
         for step in wf.dag.steps:
             is_ready = step.id in ready_step_ids
             task = TaskExecution(
                 id=0,
-                instanceId=created_instance.id,
+                instanceId=0,
                 stepId=step.id,
                 stepName=step.name,
                 taskType=step.type,
@@ -79,9 +77,13 @@ class ExecutionService:
                 attempt=1,
                 condition=getattr(step, "condition", None),
             )
-            created_tasks.append(store.add_task(task))
+            tasks.append(task)
 
-        store.record_audit("TRIGGER", "WORKFLOW", f"Triggered execution #{created_instance.id} for '{wf.name}'", user.id)
+        created_instance, created_tasks = store.add_instance_with_tasks(
+            instance,
+            tasks,
+            audit_entry=("TRIGGER", "WORKFLOW", f"Triggered execution #{{instance_id}} for '{wf.name}'", user.id, None),
+        )
         return created_instance.model_copy(update={"tasks": created_tasks})
 
     @staticmethod

@@ -11,7 +11,7 @@ export function getAccessToken() {
                   window.localStorage?.getItem("orchestrator_user");
       if (raw) {
         const u = JSON.parse(raw);
-        if (u?.token) {
+        if (u?.token && u.token !== "mock-token") {
           accessToken = u.token;
           return accessToken;
         }
@@ -22,7 +22,7 @@ export function getAccessToken() {
 }
 
 export function setAccessToken(token) {
-  accessToken = token || null;
+  accessToken = token && token !== "mock-token" ? token : null;
 }
 
 export function setUnauthorizedHandler(fn) {
@@ -30,10 +30,11 @@ export function setUnauthorizedHandler(fn) {
 }
 
 export class ApiError extends Error {
-  constructor(status, message, code) {
+  constructor(status, message, code, details) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -68,7 +69,19 @@ async function request(path, { method = "GET", body } = {}) {
     } else if (typeof data?.detail === "string") {
       detail = data.detail;
     }
-    throw new ApiError(res.status, detail || data?.title || `Lỗi ${res.status}`, data?.errorCode);
+    throw new ApiError(
+      res.status,
+      detail || data?.title || `Lỗi ${res.status}`,
+      data?.errorCode,
+      data?.cycleNodes
+        ? {
+            cycleNodes: data.cycleNodes,
+            blockedNodes: data.blockedNodes || [],
+            processedCount: data.processedCount,
+            totalNodes: data.totalNodes,
+          }
+        : undefined,
+    );
   }
   return res;
 }

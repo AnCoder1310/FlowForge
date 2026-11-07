@@ -1,4 +1,4 @@
-# INVEST Requirements — Distributed Workflow Orchestration Platform (DWOP)
+# INVEST Requirements — FlowForge(DWOP)
 
 > **Trạng thái:** TARGET V1 (Hoàn thành)
 

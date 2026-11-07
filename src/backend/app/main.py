@@ -29,6 +29,7 @@ async def app_exception_handler(request: Request, exc: AppException):
             "status": exc.status_code,
             "errorCode": exc.error_code,
             "detail": exc.detail_message,
+            **exc.metadata,
         },
     )
 

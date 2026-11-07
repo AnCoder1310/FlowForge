@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SAMPLE_WORKFLOWS, SAMPLE_WORKERS, SAMPLE_EXECUTIONS, AUDIT_LOGS, USERS } from "./data";
 import { can as canPerm, clearSession, readSession, saveSession } from "./auth";
-import { api, setAccessToken } from "./api";
+import { api, ApiError, setAccessToken, setUnauthorizedHandler } from "./api";
 
 const Ctx = createContext(null);
 
@@ -30,6 +30,7 @@ export function OrchestratorProvider({ children }) {
 
   const [toasts, setToasts] = useState([]);
   const [confirm, setConfirm] = useState(null);
+  const unauthorizedHandled = useRef(false);
 
   const toast = useCallback((msg, type = "info") => {
     const id = Date.now() + Math.random();
@@ -38,6 +39,18 @@ export function OrchestratorProvider({ children }) {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3500);
   }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      if (unauthorizedHandled.current) return;
+      unauthorizedHandled.current = true;
+      clearSession();
+      setAccessToken(null);
+      setCurrent(null);
+      toast("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.", "error");
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [toast]);
 
   const login = useCallback(async (email, password, remember = true) => {
     try {
@@ -51,13 +64,17 @@ export function OrchestratorProvider({ children }) {
         timezone: res.user.timezone,
         token: res.accessToken,
       };
+      unauthorizedHandled.current = false;
       setAccessToken(res.accessToken);
       saveSession(user, remember);
       setCurrent(user);
       toast("Đăng nhập thành công!", "success");
       return user;
-    } catch {
-      // Fallback for mock demo
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 0) {
+        throw error;
+      }
+
       const found = users.find((u) => u.email === email && u.password === password);
       if (found) {
         const u = {
@@ -66,8 +83,9 @@ export function OrchestratorProvider({ children }) {
           email: found.email,
           role: found.role,
           avatar: found.avatar,
-          token: "mock-token",
         };
+        setAccessToken(null);
+        unauthorizedHandled.current = false;
         saveSession(u, remember);
         setCurrent(u);
         toast("Đăng nhập thành công (chế độ demo)!", "success");
@@ -78,6 +96,7 @@ export function OrchestratorProvider({ children }) {
   }, [users, toast]);
 
   const logout = useCallback(() => {
+    unauthorizedHandled.current = false;
     clearSession();
     setAccessToken(null);
     setCurrent(null);
@@ -252,7 +271,7 @@ export function OrchestratorProvider({ children }) {
     try {
       await api.delete(`/workflows/${workflowId}`);
       setWorkflows((prev) => prev.filter((w) => w.id !== workflowId));
-      toast(`Đã xóa workflow #${workflowId} thành công!`, "info");
+      toast(`Đã xóa workflow #${workflowId}.`, "success");
       loadMetrics();
     } catch (err) {
       toast(err.message || "Lỗi xóa workflow", "danger");

@@ -16,7 +16,7 @@
   <!-- Platform System Boundary (Large Outline) -->
   <rect x="40" y="95" width="820" height="615" rx="14" fill="#ffffff" stroke="#2563eb" stroke-width="2" />
   <rect x="42" y="97" width="816" height="34" rx="12" fill="#f8fafc" />
-  <text x="60" y="119" font-size="13" font-weight="800" fill="#1e40af">Distributed Workflow Orchestration Platform [FlowForge Boundary]</text>
+  <text x="60" y="119" font-size="13" font-weight="800" fill="#1e40af">FlowForge[FlowForge Boundary]</text>
 
   <!-- 1. Presentation Tier: Web Console -->
   <g transform="translate(70, 145)">

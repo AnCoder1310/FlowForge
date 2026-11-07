@@ -1,0 +1,76 @@
+🔥 PROMPT 1 (V2 - ĐÃ BỔ SUNG AUTH & CONTEXT): KẾT NỐI FLOWFORGE VỚI VINFAST
+Bạn là một Principal System Architect. Tôi đang có 2 dự án trên cùng máy:
+1. Dự án Backend Engine: `FlowForge` tại `/Users/truongan/FlowForge` (FastAPI, DAG Engine duyệt bằng thuật toán Kahn, cụm Worker phân tán đa hàng đợi, xác thực JWT).
+2. Dự án Frontend/Nghiệp vụ: `VinFast AI Sales Enablement Coach` tại `/Users/truongan/AI Agent Huấn luyện & hỗ trợ tư vấn viên bán xe (Sales Enablement).` (Next.js 16, React 19, FastAPI, LangGraph, mô hình 3D xe VF3-VF9).
+
+MỤC TIÊU:
+Tích hợp FlowForge làm Backend điều phối ngầm (Workflow Orchestration Engine) cho quy trình đặt mua & thẩm định xe VinFast. Khi người dùng bấm "Nhận báo giá & Thẩm định gói vay" trên giao diện VinFast, hệ thống sẽ kích hoạt một DAG Workflow trên FlowForge.
+
+CÁC BƯỚC THỰC HIỆN CỤ THỂ:
+
+1. KHỞI TẠO WORKFLOW DEFINITION CHO VINFAST TRONG FLOWFORGE:
+Trong `src/database/init_db.py` và `src/backend/app/persistence/store.py`, seed một Workflow chuẩn:
+- Tên: "VinFast-Sales-Fulfillment-Pipeline" (version 1)
+- Các bước DAG:
+  + `step-ai-intent` (Queue: ai-agent): Phân tích nhu cầu xe (VF3/VF5/VF6/VF7/VF8/VF9), gói pin (thuê/mua đứt).
+  + `step-calc-pricing` (Queue: compute, dependsOn: [step-ai-intent]): Tính giá lăn bánh theo tỉnh thành (Hà Nội, TP.HCM, Tỉnh lẻ) kèm áp voucher ưu đãi.
+  + `step-check-inventory` (Queue: data-io, dependsOn: [step-ai-intent]): Kiểm tra tồn kho xe tại Showroom gần nhất (chạy song song với step-calc-pricing).
+  + `step-credit-check` (Queue: payment, dependsOn: [step-calc-pricing], condition: "isInstallment == true"): Thẩm định CIC và tính lịch trả góp ngân hàng 8 năm. (Nếu mua trả thẳng `isInstallment == false`, bước này tự động SKIPPED theo cơ chế của DagEngine).
+  + `step-generate-contract` (Queue: documents, dependsOn: [step-check-inventory, step-credit-check]): Tổng hợp phiếu báo giá & dữ liệu cọc.
+  + `step-notify-customer` (Queue: notification, dependsOn: [step-generate-contract]): Bắn Webhook thông báo xác nhận và trả về mã QR cọc.
+
+2. CẬP NHẬT LOGIC XỬ LÝ CHO WORKER AGENT (`src/backend/app/worker_agent.py`):
+Trong hàm `execute_task_logic`, bổ sung nhánh xử lý dữ liệu thực tế cho 6 `step_id` của VinFast ở trên (trả về payload JSON có số liệu cụ thể: giá lăn bánh, số tiền trả trước, số tiền góp mỗi tháng, mã QR).
+
+3. XÂY DỰNG API CLIENT CÓ AUTH TRÊN DỰ ÁN VINFAST (`flowforgeClient.ts`):
+Tạo file client giao tiếp từ dự án VinFast sang FlowForge:
+- Tự động gọi API `POST http://localhost:8000/api/v1/auth/login` bằng tài khoản hệ thống (`admin@orchestrator.local` / `ChangeMe123!`) để lấy JWT Bearer Token.
+- Gọi tiếp `POST http://localhost:8000/api/v1/executions/workflows/{id}/trigger` kèm Bearer Token và truyền thông tin chọn xe của khách vào `inputPayloadJson`.
+- Trả về `instanceId` để giao diện VinFast có thể theo dõi tiến trình.
+
+RÀNG BUỘC:
+- Tuyệt đối không làm hỏng 34 bài test backend (`./run.sh test`) và 27 bài test frontend của FlowForge.
+
+
+
+
+
+
+và
+
+
+
+🔥 PROMPT 2 (V2 - ĐÃ BỔ SUNG DISPATCH HOOK & TEST ISOLATION): BỔ SUNG CÔNG CỤ XỊN
+Bạn là một Senior Backend & DevOps Engineer. Hãy nâng cấp dự án `FlowForge` tại `/Users/truongan/FlowForge` bằng 4 công cụ sau theo chuẩn Enterprise:
+
+1. BỔ SUNG WEBSOCKET REAL-TIME TRẠNG THÁI TASK & INSTANCE:
+- Backend:
+  + Tạo `ConnectionManager` quản lý WebSocket connections theo `instance_id`.
+  + Thêm router WebSocket: `GET /api/v1/ws/executions/{instance_id}`.
+  + MÓC ĐIỂM PHÁT SÓNG (DISPATCH HOOK): Trong `src/backend/app/services/execution_service.py`, tại các hàm `trigger_workflow`, `complete_task`, và `fail_task`, ngay sau khi trạng thái của task hoặc instance được cập nhật, hãy gọi manager để broadcast JSON tiến độ mới nhất đến các WebSocket client đang lắng nghe.
+- Frontend:
+  + Cập nhật trang `ExecutionsPage.jsx` hoặc `WorkflowStudio.jsx` kết nối WebSocket này để khi Worker hoàn thành tác vụ, các node đổi màu thời gian thực (Live Animation) mà không cần Polling.
+
+2. BỔ SUNG CƠ CHẾ QUEUE BẰNG REDIS (HYBRID DISPATCH):
+- Cập nhật `compose.yaml`: Thêm container `redis:7-alpine` mở port `6379`.
+- Backend (`app/persistence/redis_queue.py`):
+  + Khi task được chuyển sang trạng thái `SCHEDULED`, đẩy `task_id` vào Redis key `dwop:queue:{queue_name}`.
+  + Vẫn giữ database làm Single Source of Truth (ghi nhận trạng thái Task vào DB trước khi push Redis).
+- Worker (`worker_agent.py`):
+  + Nếu kết nối được Redis: Dùng `BLPOP` để lấy việc tức thì không độ trễ.
+  + Nếu Redis không bật: Tự động fallback về HTTP Polling như cũ (đảm bảo tính tương thích ngược).
+
+3. CHUYỂN DỮ LIỆU SANG POSTGRESQL (AN TOÀN CHO TEST):
+- Mở rộng `src/backend/app/persistence/database.py`:
+  + Đọc biến môi trường `DATABASE_URL`. Nếu có và kết nối được PostgreSQL thì dùng PostgreSQL.
+  + RÀNG BUỘC BẮT BUỘC (CRITICAL): Trong môi trường kiểm thử (`pytest`) hoặc khi không kết nối được PostgreSQL, hệ thống BẮT BUỘC tự động fallback về SQLite file/temporary như hiện tại để bảo đảm toàn bộ 34 bài Pytest chạy độc lập mà không bắt buộc phải bật Docker container.
+
+4. BỔ SUNG TẠO PDF BÁO GIÁ XE VINFAST BẰNG REPORTLAB:
+- Thêm `reportlab` vào `requirements.txt`.
+- Tạo `src/backend/app/services/pdf_service.py` với hàm `generate_vinfast_quotation_pdf(order_data: dict) -> bytes`:
+  + Thiết kế layout PDF trang trọng: Tiêu đề "PHIẾU BÁO GIÁ & THẨM ĐỊNH MUA XE VINFAST", bảng liệt kê chi tiết (Dòng xe, Bản pin, Giá niêm yết, Thuế trước bạ, Phí biển số, Ưu đãi voucher, Lịch góp tháng đầu).
+  + Tích hợp hình ảnh mã VietQR thanh toán cọc vào góc cuối văn bản.
+- Gắn hàm tạo PDF này vào bước `step-generate-contract` trong `worker_agent.py`.
+
+YÊU CẦU:
+- Sau khi viết code xong, chạy lệnh `./run.sh test` kiểm tra đủ 34 bài test pass 100%.

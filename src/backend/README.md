@@ -1,4 +1,4 @@
-# Distributed Workflow Orchestration Platform — Backend Engine
+# FlowForge— Backend Engine
 
 FastAPI Async Backend điều phối tiến trình phân tán theo đồ thị DAG (Directed Acyclic Graph).
 
@@ -13,7 +13,8 @@ src/backend/
 │   │   ├── exceptions.py         # Chuẩn hóa AppException (RFC 7807)
 │   │   └── security.py           # PBKDF2 Password Hashing & HMAC-SHA256 Token
 │   ├── domain/
-│   │   ├── dag_engine.py         # Thuật toán Kahn phát hiện chu trình & giải phóng step
+│   │   ├── dag_engine.py         # Kahn execution levels & step readiness
+│   │   ├── dag_validation.py     # Dependency integrity and cycle diagnostics
 │   │   └── models.py             # Pydantic Schemas & Data Contracts
 │   ├── persistence/
 │   │   ├── database.py           # Kết nối SQLite / PostgreSQL
@@ -36,10 +37,11 @@ src/backend/
 
 ## 1. Các Giải Thuật Cốt Lõi
 
-1. **DAG Cycle Detection (Kahn's Algorithm):** Kiểm tra bậc vào (*in-degree*) của các node để đảm bảo đồ thị tuần tự không bao giờ có vòng lặp kín gây deadlock.
-2. **Step Advancement State Machine:** Khi một task chuyển sang `COMPLETED`, engine tự động đánh giá các step phụ thuộc và đưa vào hàng đợi `SCHEDULED`.
-3. **Queue Isolation Dispatcher:** Điều phối tác vụ tới 5 hàng đợi độc lập (`default`, `compute`, `data-io`, `payment`, `ai-agent`).
-4. **Worker Heartbeat & Fault Recovery:** Tự động thu hồi task và retry khi worker bị mất kết nối (Heartbeat timeout).
+1. **DAG Integrity and Kahn Scheduling:** Dependency được giữ nguyên qua normalization; duplicate/missing/self edges và chu trình đều bị từ chối, không tự động sửa. Kahn trả về các execution levels hoặc báo riêng node trong chu trình và node bị chu trình chặn.
+2. **Execution Safety:** Theo state machine trực tiếp hiện tại, DAG được xác thực trước khi tạo instance `RUNNING` và task `SCHEDULED`; worker chỉ claim task khi instance còn `RUNNING`. DAG không hợp lệ hoặc instance terminal không được đưa vào worker queue.
+3. **Step Advancement State Machine:** Khi một task chuyển sang `COMPLETED`, engine tự động đánh giá các step phụ thuộc và đưa vào hàng đợi `SCHEDULED`.
+4. **Queue Isolation Dispatcher:** Điều phối tác vụ tới 5 hàng đợi độc lập (`default`, `compute`, `data-io`, `payment`, `ai-agent`).
+5. **Worker Heartbeat & Fault Recovery:** Tự động thu hồi task và retry khi worker bị mất kết nối (Heartbeat timeout).
 
 ---
 

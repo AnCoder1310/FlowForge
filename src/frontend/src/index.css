@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Distributed Workflow Orchestration Platform (DWOP) — Design System
+   FlowForge(DWOP) — Design System
    Modern High-Performance Developer Console (Light & Dark Theme)
    ========================================================================== */
 
@@ -2183,23 +2183,85 @@ a {
   flex-direction: column;
   gap: 8px;
   z-index: 9999;
+  pointer-events: none;
 }
 
 .toast {
-  background-color: #1e293b;
-  color: #ffffff;
-  padding: 10px 18px;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  font-size: 0.84rem;
-  font-weight: 500;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 14px 18px;
+  border: 1px solid #d1fae5;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.06);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
   animation: orchToastIn 0.2s ease-out;
+}
+
+.toast-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.toast-message {
+  overflow-wrap: anywhere;
+}
+
+.toast-info {
+  border-color: #dbeafe;
+}
+
+.toast-info .toast-icon {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.toast-warning {
+  border-color: #fde68a;
+}
+
+.toast-warning .toast-icon {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.toast-danger,
+.toast-error {
+  border-color: #fecaca;
+}
+
+.toast-danger .toast-icon,
+.toast-error .toast-icon {
+  background: #fef2f2;
+  color: #dc2626;
 }
 
 @keyframes orchToastIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 600px) {
+  .toast-wrap {
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+  }
+
+  .toast {
+    max-width: none;
+  }
 }
 
 /* ==========================================================================

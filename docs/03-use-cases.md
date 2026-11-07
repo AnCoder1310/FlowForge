@@ -3,7 +3,7 @@
 > Design status: TARGET V2 (Production-Ready)  
 > Implementation status: FULL BASELINE IMPLEMENTED (FastAPI + React Console + Distributed Worker Daemon)
 
-Product name: **FlowForge — Distributed Workflow Orchestration Platform (DWOP)**.
+Product name: **FlowForge — FlowForge(DWOP)**.
 
 ---
 

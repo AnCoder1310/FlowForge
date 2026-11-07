@@ -1,9 +1,9 @@
-# Scope V1 — Distributed Workflow Orchestration Platform (DWOP)
+# Scope V1 — FlowForge(DWOP)
 
 > **Trạng thái thiết kế:** TARGET V1  
 > **Trạng thái thực thi:** HOÀN THIỆN ĐẦY ĐỦ (FastAPI Backend + React Console)
 
-Tên sản phẩm trong giao diện: **FlowForge — Distributed Workflow Orchestration Platform (DWOP)**.
+Tên sản phẩm trong giao diện: **FlowForge — FlowForge(DWOP)**.
 
 ---
 

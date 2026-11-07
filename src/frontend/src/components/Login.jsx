@@ -134,7 +134,7 @@ export default function Login() {
           </form>
 
           <footer className="login-legal">
-            <span className="legal-copy">Distributed Workflow Orchestration Platform © 2026</span>
+            <span className="legal-copy">FlowForge© 2026</span>
           </footer>
         </div>
       </section>

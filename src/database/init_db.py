@@ -7,11 +7,12 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "workflow_orchestrator.db")
 
 def init_sqlite_db():
     print(f"Initializing database at: {DB_PATH}")
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     cursor = conn.cursor()
 
     # Enable foreign keys
     cursor.execute("PRAGMA foreign_keys = ON;")
+    cursor.execute("PRAGMA busy_timeout = 30000;")
 
     # 1. Users Table
     cursor.execute("""

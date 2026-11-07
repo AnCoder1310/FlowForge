@@ -57,7 +57,7 @@
   <!-- Center: FlowForge Master System Boundary -->
   <rect x="250" y="280" width="700" height="180" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="2.5" filter="url(#shadow)" />
   <rect x="252" y="282" width="696" height="38" rx="10" fill="#f8fafc" />
-  <text x="600" y="306" font-size="15" font-weight="800" fill="#1e40af" text-anchor="middle">FlowForge Distributed Workflow Orchestration Platform (Master Brain)</text>
+  <text x="600" y="306" font-size="15" font-weight="800" fill="#1e40af" text-anchor="middle">FlowForge FlowForge(Master Brain)</text>
 
   <g transform="translate(280, 335)">
     <circle cx="8" cy="8" r="4" fill="#2563eb" />

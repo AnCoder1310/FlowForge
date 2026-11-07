@@ -1,4 +1,4 @@
-# C4 Model — Distributed Workflow Orchestration Platform (DWOP)
+# C4 Model — FlowForge(DWOP)
 
 > **Status:** Architecture Baseline · **Audience:** Developers, Architects, SREs, and Platform Maintainers
 

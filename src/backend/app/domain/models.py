@@ -97,11 +97,16 @@ class DagStep(BaseModel):
         if v is None:
             return []
         if isinstance(v, str):
-            v = v.strip()
-            return [v] if v else []
+            if not v:
+                raise ValueError("Dependency IDs cannot be empty.")
+            return [v]
         if isinstance(v, list):
-            return [str(x).strip() for x in v if x is not None and str(x).strip()]
-        return []
+            if any(not isinstance(item, str) for item in v):
+                raise ValueError("Dependencies must be strings.")
+            if any(not item for item in v):
+                raise ValueError("Dependency IDs cannot be empty.")
+            return v
+        raise ValueError("Dependencies must be a list of IDs.")
 
     @field_validator("configurationJson", mode="before")
     @classmethod

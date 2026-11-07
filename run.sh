@@ -14,7 +14,7 @@ BACKEND_PORT="${PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
 
 echo "=========================================================="
-echo "  Distributed Workflow Orchestration Platform (DWOP)"
+echo "  FlowForge(DWOP)"
 echo "=========================================================="
 
 case "$1" in
@@ -41,7 +41,7 @@ case "$1" in
     ;;
 
   test)
-    echo ">> Chạy toàn bộ 34 bài Pytest của Orchestrator & AI Engine ..."
+    echo ">> Chạy toàn bộ các bài Pytest của Orchestrator & AI Engine ..."
     cd "$DIR/src/backend"
     python3 -m pytest -v
     ;;

@@ -1,7 +1,7 @@
 [project]
 name = "distributed-workflow-orchestrator"
 version = "1.0.0"
-description = "Distributed Workflow Orchestration Platform Engine"
+description = "FlowForgeEngine"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

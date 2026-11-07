@@ -8,6 +8,7 @@ import httpx
 from app.config import settings
 from app.core.exceptions import AppException
 from app.domain.dag_engine import DagEngine
+from app.domain.dag_validation import DagIntegrityValidator
 from app.domain.models import (
     AiDiagnoseFailureResponse,
     AiGenerateWorkflowResponse,
@@ -42,7 +43,7 @@ SUPPORTED_QUEUES = {
     "ml-worker",
 }
 
-SYSTEM_PROMPT = """You are an expert Distributed Systems Architect for FlowForge (Distributed Workflow Orchestration Platform - DWOP).
+SYSTEM_PROMPT = """You are an expert Distributed Systems Architect for FlowForge (FlowForge- DWOP).
 Your task is to decompose a business process prompt into an optimal, production-grade Directed Acyclic Graph (DAG) workflow.
 
 CRITICAL ARCHITECTURAL RULES:
@@ -81,11 +82,13 @@ CRITICAL ARCHITECTURAL RULES:
    - "maxRetries": 1-2 for tasks with side effects (payment, notifications, external webhooks); 2-3 for idempotent tasks (compute, data-io, AI). Never exceed 5.
    - "timeoutSeconds": 15-30 for HTTP/notifications; 45-90 for AI agents; 120-300 for compute/data-io.
 
-6. DAG Validity:
+6. Dependency Integrity:
    - Step IDs must be unique strings (kebab-case, e.g. "step-fetch-reviews").
    - Every ID in `dependsOn` must exist in the steps array.
    - A step must never depend on itself.
-   - The graph must be strictly acyclic (no circular dependencies).
+   - Preserve every dependency explicitly required by the user; never remove, add, or reverse one to make the graph acyclic.
+   - If the user's explicit dependencies form a cycle, return those exact dependencies. The server will reject the DAG instead of repairing it.
+   - Only generate an acyclic graph when the business dependencies themselves are acyclic.
 
 7. Strict JSON Output Schema:
    Respond with pure valid JSON ONLY without any markdown code fences or conversational text:
@@ -223,14 +226,13 @@ class AiOrchestratorService:
         if "20128" in base_url or "router" in base_url.lower():
             # Fast, low-latency models first to prevent Gateway Timeout
             router_defaults = [
-                "gemini-3.8-flash-low",
-                "gemini-3.7-flash-low",
-                "gemini-3.6-flash-low",
-                "claude-sonnet-4-6",
+                "gemini-3.8-flash-high",
+                "gemini-3.6-flash-high",
                 "gemini",
+                "claude-opus-4-6-thinking",
+                "claude",
                 "openAI",
                 "mixed",
-                "claude",
             ]
             for m in router_defaults:
                 if m not in candidate_models:
@@ -254,6 +256,7 @@ class AiOrchestratorService:
                 ],
                 "temperature": 0.2,
                 "max_tokens": 2500,
+                "stream": False,
             }
 
             try:
@@ -261,13 +264,34 @@ class AiOrchestratorService:
                     res = client.post(url, json=payload, headers=headers)
 
                 if res.status_code == 200:
-                    data = res.json()
+                    raw_text = res.text.strip()
+                    if not raw_text:
+                        last_error = f"Model '{model}' returned empty HTTP 200 body"
+                        continue
+                    try:
+                        data = res.json()
+                    except Exception as json_err:
+                        last_error = f"Model '{model}' response is not JSON ({str(json_err)}): {raw_text[:120]}"
+                        continue
+
                     choices = data.get("choices", [])
                     if not choices:
                         last_error = f"Model '{model}': choices list is empty"
                         logger.warning("AI Provider (%s) returned empty choices for model %s", base_url, model)
                         continue
-                    content = choices[0].get("message", {}).get("content", "")
+
+                    msg = choices[0].get("message", {})
+                    content = (
+                        msg.get("content")
+                        or msg.get("reasoning_content")
+                        or msg.get("thought")
+                        or choices[0].get("text")
+                        or ""
+                    )
+                    if not content.strip():
+                        last_error = f"Model '{model}': message content is empty"
+                        continue
+
                     return cls._parse_llm_json(content)
 
                 elif res.status_code in (401, 403):
@@ -312,17 +336,9 @@ class AiOrchestratorService:
         )
 
     @classmethod
-    def _sanitize_and_repair_dag(cls, raw: dict, prompt: str) -> AiGenerateWorkflowResponse:
+    def _normalize_and_validate_dag(cls, raw: dict, prompt: str) -> AiGenerateWorkflowResponse:
         """
-        Sanitizes, validates, and repairs an AI-generated DAG dictionary to strictly meet all
-        FlowForge invariants:
-        1. Unique step IDs.
-        2. Valid TaskType enum.
-        3. Supported isolated queue name.
-        4. Bounded maxRetries and timeoutSeconds.
-        5. Clean dependsOn references.
-        6. Deterministic Kahn's cycle detection and cycle breaking.
-        7. Full compliance with DagEngine.validate_dag().
+        Normalize task metadata without changing IDs or dependency edges, then validate the DAG.
         """
         name = str(raw.get("name") or "Workflow-Generated").strip()
         description = str(raw.get("description") or f"Quy trình tự động hóa: {prompt}").strip()
@@ -336,18 +352,15 @@ class AiOrchestratorService:
         if not raw_steps or not isinstance(raw_steps, list):
             raise AppException.validation("AI không tạo được danh sách bước (steps) hợp lệ cho workflow.")
 
-        sanitized_steps: List[DagStep] = []
-        seen_ids: Set[str] = set()
-
+        normalized_steps: List[DagStep] = []
         for idx, s in enumerate(raw_steps):
             if not isinstance(s, dict):
-                continue
+                raise AppException.validation(f"AI generated an invalid task at position {idx + 1}.")
 
-            raw_id = str(s.get("id") or f"step-{idx+1}").strip()
-            clean_id = re.sub(r"[^a-zA-Z0-9_-]", "-", raw_id).strip("-") or f"step-{idx+1}"
-            while clean_id in seen_ids:
-                clean_id = f"{clean_id}-{idx+1}"
-            seen_ids.add(clean_id)
+            raw_id = s.get("id")
+            if not isinstance(raw_id, str) or not raw_id or raw_id != raw_id.strip():
+                raise AppException.validation(f"AI generated an invalid task ID at position {idx + 1}.")
+            clean_id = raw_id
 
             step_name = str(s.get("name") or f"Step {idx+1}").strip()
 
@@ -403,60 +416,31 @@ class AiOrchestratorService:
                 timeout = 120
             timeout = max(15, min(timeout, 600))
 
-            deps = s.get("dependsOn") or []
-            if not isinstance(deps, list):
+            deps = s.get("dependsOn", [])
+            if deps is None:
                 deps = []
-            clean_deps = [str(d).strip() for d in deps if str(d).strip() != clean_id]
+            if not isinstance(deps, list) or any(not isinstance(dep, str) for dep in deps):
+                raise AppException.validation(f"AI generated invalid dependencies for task '{clean_id}'.")
 
-            sanitized_steps.append(
+            normalized_steps.append(
                 DagStep(
                     id=clean_id,
                     name=step_name,
                     type=task_type,
                     queue=queue_name,
-                    dependsOn=clean_deps,
+                    dependsOn=deps,
                     maxRetries=retries,
                     timeoutSeconds=timeout,
                     configurationJson=s.get("configurationJson"),
                 )
             )
 
-        if not sanitized_steps:
+        if not normalized_steps:
             raise AppException.validation("Không có bước hợp lệ nào được tạo từ AI.")
 
-        # Ensure all dependsOn only reference valid existing steps and not self
-        valid_id_set = {st.id for st in sanitized_steps}
-        for st in sanitized_steps:
-            st.dependsOn = [d for d in st.dependsOn if d in valid_id_set and d != st.id]
-
-        # Break any cycle if present using Kahn's algorithm
-        in_degree = {st.id: len(st.dependsOn) for st in sanitized_steps}
-        adj = {st.id: [] for st in sanitized_steps}
-        for st in sanitized_steps:
-            for dep in st.dependsOn:
-                adj[dep].append(st.id)
-
-        from collections import deque
-        q = deque([sid for sid, deg in in_degree.items() if deg == 0])
-        visited: Set[str] = set()
-
-        while q:
-            u = q.popleft()
-            visited.add(u)
-            for v in adj[u]:
-                in_degree[v] -= 1
-                if in_degree[v] == 0:
-                    q.append(v)
-
-        # If cycles exist (unvisited nodes), prune backwards dependencies to restore acyclic property
-        if len(visited) < len(sanitized_steps):
-            logger.warning("Cycle detected in AI-generated steps. Breaking cyclic edges using Kahn's sort.")
-            for st in sanitized_steps:
-                if st.id not in visited:
-                    st.dependsOn = [d for d in st.dependsOn if d in visited]
-                    visited.add(st.id)
-
-        dag = DagDefinition(steps=sanitized_steps)
+        dag = DagDefinition(steps=normalized_steps)
+        DagIntegrityValidator.validate_dependency_preservation(raw_steps, dag)
+        cls._validate_prompt_dependencies(prompt, dag)
         DagEngine.validate_dag(dag)
 
         return AiGenerateWorkflowResponse(
@@ -465,6 +449,34 @@ class AiOrchestratorService:
             dag=dag,
             reasoning=reasoning,
         )
+
+    @staticmethod
+    def _validate_prompt_dependencies(prompt: str, dag: DagDefinition) -> None:
+        relationship = r"(?:depends\s+on|depends\s+upon|is\s+dependent\s+on|requires|phụ\s+thuộc\s+vào)"
+
+        def aliases(value: str) -> Set[str]:
+            normalized = re.sub(r"[-_]+", " ", value.casefold()).strip()
+            return {normalized, re.sub(r"\s+", " ", normalized)}
+
+        for step in dag.steps:
+            for dependency in dag.steps:
+                if step.id == dependency.id:
+                    continue
+                explicit = any(
+                    re.search(
+                        rf"(?<!\w){re.escape(dependent_alias)}\s+{relationship}\s+"
+                        rf"{re.escape(dependency_alias)}(?!\w)",
+                        prompt,
+                        flags=re.IGNORECASE,
+                    )
+                    for dependent_alias in aliases(step.name) | aliases(step.id)
+                    for dependency_alias in aliases(dependency.name) | aliases(dependency.id)
+                )
+                if explicit and dependency.id not in step.dependsOn:
+                    raise AppException.validation(
+                        f"AI DAG omitted required dependency: '{step.name}' depends on "
+                        f"'{dependency.name}'. The dependency was not added automatically."
+                    )
 
     @classmethod
     def generate_workflow(
@@ -487,8 +499,8 @@ class AiOrchestratorService:
         # 1. Invoke Real LLM Provider
         llm_raw = cls._call_llm(SYSTEM_PROMPT, clean_prompt)
 
-        # 2. Parse, Sanitize, Repair and Validate DAG
-        response = cls._sanitize_and_repair_dag(llm_raw, clean_prompt)
+        # 2. Normalize metadata and validate dependency integrity and acyclicity
+        response = cls._normalize_and_validate_dag(llm_raw, clean_prompt)
 
         # 3. Optional Auto-Save to Database
         if auto_save:

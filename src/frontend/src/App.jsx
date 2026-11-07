@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect } from "react";
 import { HashRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { I } from "./lib/icons";
 import { OrchestratorProvider, useOrchestrator } from "./lib/store";
 import { PAGE_PERM, can } from "./lib/auth";
 import Login from "./features/auth/pages/Login";
@@ -28,9 +29,14 @@ function BodyClass() {
     document.body.classList.toggle("app", Boolean(current) && loc.pathname !== "/login");
   }, [current, loc.pathname]);
   return (
-    <div className="toast-wrap">
+    <div className="toast-wrap" aria-live="polite" aria-atomic="false">
       {toasts.map((t) => (
-        <div key={t.id} className="toast">{t.msg}</div>
+        <div key={t.id} className={`toast toast-${t.type || "info"}`} role="status">
+          <span className="toast-icon">
+            <I name={t.type === "success" ? "circle-check" : t.type === "warning" ? "triangle-alert" : t.type === "danger" || t.type === "error" ? "circle-alert" : "info"} size={19} />
+          </span>
+          <span className="toast-message">{t.msg}</span>
+        </div>
       ))}
     </div>
   );

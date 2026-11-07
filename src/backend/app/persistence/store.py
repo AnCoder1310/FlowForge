@@ -25,10 +25,7 @@ class InMemoryStore:
         self._lock = threading.RLock()
         self._user_seq = 0
         self._workflow_seq = 0
-        self._instance_seq = 0
-        self._task_seq = 0
         self._worker_seq = 0
-        self._audit_seq = 0
 
         self.users: Dict[int, UserAccount] = {}
         self.workflows: Dict[int, WorkflowDefinition] = {}
@@ -195,8 +192,6 @@ class InMemoryStore:
                     updatedAt=_parse_dt(r["updated_at"], now),
                 )
                 self.instances[inst_id] = inst
-                if inst_id > self._instance_seq:
-                    self._instance_seq = inst_id
 
             task_rows = conn.execute("SELECT * FROM task_executions ORDER BY id ASC").fetchall()
             for tr in task_rows:
@@ -233,8 +228,6 @@ class InMemoryStore:
                     updatedAt=_parse_dt(tr["updated_at"], now),
                 )
                 self.tasks[t_id] = task
-                if t_id > self._task_seq:
-                    self._task_seq = t_id
 
             conn.close()
         except Exception:
@@ -270,23 +263,26 @@ class InMemoryStore:
 
     def add_workflow(self, wf: WorkflowDefinition) -> WorkflowDefinition:
         with self._lock:
-            self._workflow_seq += 1
-            created = wf.model_copy(update={"id": self._workflow_seq})
-            self.workflows[created.id] = created
+            from app.persistence.database import get_db_connection
+            conn = get_db_connection()
             try:
-                from app.persistence.database import get_db_connection
-                conn = get_db_connection()
-                conn.execute(
+                cursor = conn.execute(
                     """
-                    INSERT OR REPLACE INTO workflow_definitions (id, name, version, description, dag_definition, is_active, created_by, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    INSERT INTO workflow_definitions (name, version, description, dag_definition, is_active, created_by, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                     """,
-                    (created.id, created.name, created.version, created.description, created.dag.model_dump_json(), 1 if created.isActive else 0, created.createdBy)
+                    (wf.name, wf.version, wf.description, wf.dag.model_dump_json(), 1 if wf.isActive else 0, wf.createdBy)
                 )
                 conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
                 conn.close()
-            except Exception as ex:
-                pass
+
+            created = wf.model_copy(update={"id": cursor.lastrowid})
+            self.workflows[created.id] = created
+            self._workflow_seq = max(self._workflow_seq, created.id)
             return created
 
     def update_workflow(self, wf: WorkflowDefinition) -> None:
@@ -312,24 +308,119 @@ class InMemoryStore:
     # --- Executions & Tasks ---
     def add_instance(self, instance: WorkflowInstance) -> WorkflowInstance:
         with self._lock:
-            self._instance_seq += 1
-            created = instance.model_copy(update={"id": self._instance_seq})
-            self.instances[created.id] = created
+            from app.persistence.database import get_db_connection
+            conn = get_db_connection()
             try:
-                from app.persistence.database import get_db_connection
-                conn = get_db_connection()
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO workflow_instances (id, workflow_id, workflow_name, version, status, input_payload, output_payload, context_data, error_message, triggered_by, started_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
-                    """,
-                    (created.id, created.workflowId, created.workflowName, created.version, created.status.value, created.inputPayloadJson, created.outputPayloadJson, created.contextDataJson, created.errorMessage, created.triggeredBy)
-                )
+                cursor = self._insert_instance(conn, instance)
                 conn.commit()
-                conn.close()
             except Exception:
-                pass
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+
+            created = instance.model_copy(update={"id": cursor.lastrowid})
+            self.instances[created.id] = created
             return created
+
+    @staticmethod
+    def _insert_instance(conn, instance: WorkflowInstance):
+        return conn.execute(
+            """
+            INSERT INTO workflow_instances (workflow_id, workflow_name, version, status, input_payload, output_payload, context_data, error_message, triggered_by, started_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            """,
+            (
+                instance.workflowId,
+                instance.workflowName,
+                instance.version,
+                instance.status.value,
+                instance.inputPayloadJson,
+                instance.outputPayloadJson,
+                instance.contextDataJson,
+                instance.errorMessage,
+                instance.triggeredBy,
+                instance.startedAt.isoformat() if instance.startedAt else None,
+            ),
+        )
+
+    @staticmethod
+    def _insert_task(conn, task: TaskExecution, instance_id: int):
+        return conn.execute(
+            """
+            INSERT INTO task_executions (instance_id, step_id, step_name, task_type, queue_name, status, retry_count, max_retries, timeout_seconds, input_payload, output_payload, error_message, assigned_worker_id, scheduled_at, claimed_at, started_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            """,
+            (
+                instance_id,
+                task.stepId,
+                task.stepName,
+                task.taskType.value,
+                task.queueName,
+                task.status.value,
+                task.retryCount,
+                task.maxRetries,
+                task.timeoutSeconds,
+                task.inputPayloadJson,
+                task.outputPayloadJson,
+                task.errorMessage,
+                task.assignedWorkerId,
+                task.scheduledAt.isoformat() if task.scheduledAt else None,
+                task.claimedAt.isoformat() if task.claimedAt else None,
+                task.startedAt.isoformat() if task.startedAt else None,
+            ),
+        )
+
+    def add_instance_with_tasks(
+        self,
+        instance: WorkflowInstance,
+        tasks: List[TaskExecution],
+        audit_entry: Optional[Tuple[str, str, str, Optional[int], Optional[str]]] = None,
+    ) -> Tuple[WorkflowInstance, List[TaskExecution]]:
+        with self._lock:
+            from app.persistence.database import get_db_connection
+            conn = get_db_connection()
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                instance_cursor = self._insert_instance(conn, instance)
+                instance_id = instance_cursor.lastrowid
+                created_tasks = []
+                for task in tasks:
+                    task_cursor = self._insert_task(conn, task, instance_id)
+                    created_tasks.append(task.model_copy(update={
+                        "id": task_cursor.lastrowid,
+                        "instanceId": instance_id,
+                    }))
+                audit_id = None
+                audit_detail = ""
+                if audit_entry:
+                    action, module, detail, user_id, metadata = audit_entry
+                    audit_detail = detail.replace("{instance_id}", str(instance_id))
+                    audit_id = self._insert_audit(
+                        conn, action, module, audit_detail, user_id, metadata
+                    ).lastrowid
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+
+            created_instance = instance.model_copy(update={"id": instance_id})
+            self.instances[instance_id] = created_instance
+            self.tasks.update({task.id: task for task in created_tasks})
+            if audit_entry and audit_id is not None:
+                action, module, detail, user_id, metadata = audit_entry
+                self.audits.append(AuditLog(
+                    id=audit_id,
+                    action=action,
+                    module=module,
+                    detail=audit_detail,
+                    actorUserId=user_id,
+                    createdAt=datetime.now(timezone.utc),
+                    metadata=metadata,
+                ))
+            return created_instance, created_tasks
 
     def get_instance(self, instance_id: int) -> Optional[WorkflowInstance]:
         with self._lock:
@@ -374,26 +465,19 @@ class InMemoryStore:
 
     def add_task(self, task: TaskExecution) -> TaskExecution:
         with self._lock:
-            self._task_seq += 1
-            created = task.model_copy(update={"id": self._task_seq})
-            self.tasks[created.id] = created
+            from app.persistence.database import get_db_connection
+            conn = get_db_connection()
             try:
-                from app.persistence.database import get_db_connection
-                conn = get_db_connection()
-                sched_str = created.scheduledAt.isoformat() if created.scheduledAt else None
-                claimed_str = created.claimedAt.isoformat() if created.claimedAt else None
-                started_str = created.startedAt.isoformat() if created.startedAt else None
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO task_executions (id, instance_id, step_id, step_name, task_type, queue_name, status, retry_count, max_retries, timeout_seconds, input_payload, output_payload, error_message, assigned_worker_id, scheduled_at, claimed_at, started_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-                    """,
-                    (created.id, created.instanceId, created.stepId, created.stepName, created.taskType.value, created.queueName, created.status.value, created.retryCount, created.maxRetries, created.timeoutSeconds, created.inputPayloadJson, created.outputPayloadJson, created.errorMessage, created.assignedWorkerId, sched_str, claimed_str, started_str)
-                )
+                cursor = self._insert_task(conn, task, task.instanceId)
                 conn.commit()
-                conn.close()
             except Exception:
-                pass
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+
+            created = task.model_copy(update={"id": cursor.lastrowid})
+            self.tasks[created.id] = created
             return created
 
     def get_task(self, task_id: int) -> Optional[TaskExecution]:
@@ -443,7 +527,10 @@ class InMemoryStore:
             # 2. Sort by scheduledAt, then id (Fair FIFO)
             candidates = [
                 t for t in self.tasks.values()
-                if t.status == StepStatus.SCHEDULED and (
+                if t.status == StepStatus.SCHEDULED
+                and (instance := self.instances.get(t.instanceId)) is not None
+                and instance.status == WorkflowStatus.RUNNING
+                and (
                     t.queueName in allowed_queues or
                     ("default" in allowed_queues and t.queueName not in {"compute", "data-io", "payment", "ai-agent"})
                 )
@@ -460,7 +547,14 @@ class InMemoryStore:
                         """
                         UPDATE task_executions
                         SET status = 'RUNNING', assigned_worker_id = ?, claimed_at = ?, started_at = ?, updated_at = ?
-                        WHERE id = ? AND status = 'SCHEDULED'
+                        WHERE id = ?
+                          AND status = 'SCHEDULED'
+                          AND EXISTS (
+                              SELECT 1
+                              FROM workflow_instances
+                              WHERE workflow_instances.id = task_executions.instance_id
+                                AND workflow_instances.status = 'RUNNING'
+                          )
                         """,
                         (worker_id, now_iso, now_iso, now_iso, task.id)
                     )
@@ -659,30 +753,34 @@ class InMemoryStore:
     # --- Audit ---
     def record_audit(self, action: str, module: str, detail: str, user_id: Optional[int] = None, metadata: Optional[str] = None):
         with self._lock:
-            self._audit_seq += 1
-            log = AuditLog(
-                id=self._audit_seq,
+            from app.persistence.database import get_db_connection
+            conn = get_db_connection()
+            try:
+                cursor = self._insert_audit(conn, action, module, detail, user_id, metadata)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+            self.audits.append(AuditLog(
+                id=cursor.lastrowid,
                 action=action,
                 module=module,
                 detail=detail,
                 actorUserId=user_id,
                 createdAt=datetime.now(timezone.utc),
-                metadata=metadata
-            )
-            self.audits.append(log)
-            try:
-                from app.persistence.database import get_db_connection
-                conn = get_db_connection()
-                conn.execute(
-                    """
-                    INSERT INTO audit_logs (id, actor_user_id, action, module, detail, created_at)
-                    VALUES (?, ?, ?, ?, ?, datetime('now'))
-                    """,
-                    (log.id, user_id, action, module, detail)
-                )
-                conn.commit()
-                conn.close()
-            except Exception:
-                pass
+                metadata=metadata,
+            ))
+
+    @staticmethod
+    def _insert_audit(conn, action: str, module: str, detail: str, user_id: Optional[int], metadata: Optional[str]):
+        return conn.execute(
+            """
+            INSERT INTO audit_logs (actor_user_id, action, module, detail, metadata, created_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
+            """,
+            (user_id, action, module, detail, metadata),
+        )
 
 store = InMemoryStore()

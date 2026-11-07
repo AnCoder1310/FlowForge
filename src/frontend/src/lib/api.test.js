@@ -33,6 +33,13 @@ describe("api()", () => {
     expect(lastCall()[1].headers.Authorization).toBeUndefined();
   });
 
+  it("không gửi mock token cũ lên API", async () => {
+    fetchMock.mockResolvedValue(json({}));
+    setAccessToken("mock-token");
+    await api("/x");
+    expect(lastCall()[1].headers.Authorization).toBeUndefined();
+  });
+
   it("gửi object dưới dạng JSON kèm Content-Type", async () => {
     fetchMock.mockResolvedValue(json({}));
     await api("/incomes", { method: "POST", body: { a: 1 } });
@@ -80,6 +87,28 @@ describe("api()", () => {
   it("giữ mã lỗi nghiệp vụ", async () => {
     fetchMock.mockResolvedValue(json({ detail: "x", errorCode: "VALIDATION_ERROR" }, { status: 400 }));
     expect((await api("/x").catch((e) => e)).code).toBe("VALIDATION_ERROR");
+  });
+
+  it("giữ thông báo dễ hiểu và thông tin node của lỗi chu trình DAG", async () => {
+    fetchMock.mockResolvedValue(json({
+      detail: "Phát hiện chu trình phụ thuộc trong DAG; workflow không thể được thực thi.",
+      errorCode: "CIRCULAR_DEPENDENCY",
+      cycleNodes: ["fraud-detection", "transaction-approval"],
+      blockedNodes: ["notify"],
+      processedCount: 2,
+      totalNodes: 5,
+    }, { status: 400 }));
+
+    const error = await api("/executions/workflows/1/trigger").catch((err) => err);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.code).toBe("CIRCULAR_DEPENDENCY");
+    expect(error.message).toMatch(/workflow không thể được thực thi/);
+    expect(error.details).toEqual({
+      cycleNodes: ["fraud-detection", "transaction-approval"],
+      blockedNodes: ["notify"],
+      processedCount: 2,
+      totalNodes: 5,
+    });
   });
 
   it("gọi handler hết phiên khi 401 và đang có token", async () => {

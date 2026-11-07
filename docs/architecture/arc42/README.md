@@ -2,7 +2,7 @@
 
 > **Status:** Baseline · **Audience:** Developers, reviewers, system architects, and maintainers
 
-This documentation uses the international arc42 template to describe the goals, constraints, building blocks, runtime scenarios, and architectural decisions of **FlowForge (Distributed Workflow Orchestration Platform - DWOP)**.
+This documentation uses the international arc42 template to describe the goals, constraints, building blocks, runtime scenarios, and architectural decisions of **FlowForge (FlowForge- DWOP)**.
 
 ```mermaid
 flowchart LR

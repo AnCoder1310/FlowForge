@@ -1,6 +1,6 @@
 # 1. Introduction and Goals
 
-**FlowForge (Distributed Workflow Orchestration Platform - DWOP)** helps engineering and operations teams orchestrate complex, multi-step distributed workflows as Directed Acyclic Graphs (DAG), manage asynchronous task dispatch across isolated worker queues, automate failure self-healing with AI, and track end-to-end execution lifecycle and audit logs in one unified console.
+**FlowForge (FlowForge- DWOP)** helps engineering and operations teams orchestrate complex, multi-step distributed workflows as Directed Acyclic Graphs (DAG), manage asynchronous task dispatch across isolated worker queues, automate failure self-healing with AI, and track end-to-end execution lifecycle and audit logs in one unified console.
 
 ## 1.1 Requirements Overview
 
